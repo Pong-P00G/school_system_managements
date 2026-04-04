@@ -1,0 +1,50 @@
+# OWASP ZAP Automation Framework Configuration
+# Run: docker run -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py \
+#   -t http://host.docker.internal:8000/docs -f openapi -c zap-config.yml
+
+env:
+  contexts:
+    - name: "School Management API"
+      urls:
+        - "http://localhost:8000"
+      includePaths:
+        - "http://localhost:8000/api/.*"
+      excludePaths:
+        - "http://localhost:8000/metrics.*"
+
+jobs:
+  - type: openapi
+    parameters:
+      apiUrl: "http://localhost:8000/openapi.json"
+      targetUrl: "http://localhost:8000"
+
+  - type: passiveScan-config
+    parameters:
+      maxAlertsPerRule: 10
+      scanOnlyInScope: true
+
+  - type: spider
+    parameters:
+      context: "School Management API"
+      maxDuration: 5
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 5
+
+  - type: activeScan
+    parameters:
+      context: "School Management API"
+      maxRuleDurationInMins: 5
+      maxScanDurationInMins: 30
+
+  - type: report
+    parameters:
+      template: "traditional-html"
+      reportDir: "/zap/wrk/reports"
+      reportFile: "zap-security-report"
+    risks:
+      - high
+      - medium
+      - low
+      - info

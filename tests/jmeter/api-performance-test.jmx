@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+    <hashTree>
+        <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="School Management API Performance Test">
+            <elementProp name="TestPlan.user_defined_variables" elementType="Arguments">
+                <collectionProp name="Arguments.arguments">
+                    <elementProp name="BASE_URL" elementType="Argument">
+                        <stringProp name="Argument.name">BASE_URL</stringProp>
+                        <stringProp name="Argument.value">localhost</stringProp>
+                    </elementProp>
+                    <elementProp name="PORT" elementType="Argument">
+                        <stringProp name="Argument.name">PORT</stringProp>
+                        <stringProp name="Argument.value">8000</stringProp>
+                    </elementProp>
+                </collectionProp>
+            </elementProp>
+        </TestPlan>
+        <hashTree>
+            <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="API Load Test">
+                <intProp name="ThreadGroup.num_threads">50</intProp>
+                <intProp name="ThreadGroup.ramp_time">10</intProp>
+                <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+                <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+                    <intProp name="LoopController.loops">100</intProp>
+                </elementProp>
+            </ThreadGroup>
+            <hashTree>
+                <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Health Check">
+                    <stringProp name="HTTPSampler.domain">${BASE_URL}</stringProp>
+                    <intProp name="HTTPSampler.port">${PORT}</intProp>
+                    <stringProp name="HTTPSampler.path">/api/v1/health</stringProp>
+                    <stringProp name="HTTPSampler.method">GET</stringProp>
+                </HTTPSamplerProxy>
+                <hashTree/>
+                <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="List Departments">
+                    <stringProp name="HTTPSampler.domain">${BASE_URL}</stringProp>
+                    <intProp name="HTTPSampler.port">${PORT}</intProp>
+                    <stringProp name="HTTPSampler.path">/api/v1/departments/</stringProp>
+                    <stringProp name="HTTPSampler.method">GET</stringProp>
+                </HTTPSamplerProxy>
+                <hashTree/>
+                <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="List Courses">
+                    <stringProp name="HTTPSampler.domain">${BASE_URL}</stringProp>
+                    <intProp name="HTTPSampler.port">${PORT}</intProp>
+                    <stringProp name="HTTPSampler.path">/api/v1/courses/</stringProp>
+                    <stringProp name="HTTPSampler.method">GET</stringProp>
+                </HTTPSamplerProxy>
+                <hashTree/>
+                <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="List Users">
+                    <stringProp name="HTTPSampler.domain">${BASE_URL}</stringProp>
+                    <intProp name="HTTPSampler.port">${PORT}</intProp>
+                    <stringProp name="HTTPSampler.path">/api/v1/users/</stringProp>
+                    <stringProp name="HTTPSampler.method">GET</stringProp>
+                </HTTPSamplerProxy>
+                <hashTree/>
+                <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report">
+                    <stringProp name="filename">results/summary.csv</stringProp>
+                </ResultCollector>
+                <hashTree/>
+            </hashTree>
+        </hashTree>
+    </hashTree>
+</jmeterTestPlan>

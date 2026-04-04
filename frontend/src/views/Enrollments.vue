@@ -1,0 +1,236 @@
+<script setup>
+import { onMounted, ref } from 'vue'
+import {
+  createEnrollment,
+  deleteEnrollment,
+  getEnrollments,
+  getSections,
+  getStudents,
+  updateEnrollment
+} from '../services/api'
+import { getApiError, pick, toNullableString } from '../components/utils/crud'
+
+const enrollments = ref([])
+const students = ref([])
+const sections = ref([])
+const total = ref(0)
+const loading = ref(false)
+const saving = ref(false)
+const error = ref('')
+const showModal = ref(false)
+const editingEnrollmentId = ref(null)
+
+const defaultForm = () => ({
+  student_id: '', section_id: '', enrollment_status: 'enrolled',
+  grade: '', grade_points: '', credits_earned: '', attendance_percentage: '',
+  midterm_grade: '', final_grade: '', is_audit: false, withdrawal_reason: '',
+})
+
+const form = ref(defaultForm())
+
+const loadEnrollments = async () => {
+  loading.value = true; error.value = ''
+  try {
+    const [enrollmentsRes, studentsRes, sectionsRes] = await Promise.all([
+      getEnrollments(0, 1000), getStudents(0, 1000), getSections(0, 1000),
+    ])
+    enrollments.value = enrollmentsRes.data.enrollments
+    total.value = enrollmentsRes.data.total
+    students.value = studentsRes.data.students
+    sections.value = sectionsRes.data.sections
+  } catch (err) { error.value = getApiError(err, 'Failed to load enrollments') }
+  finally { loading.value = false }
+}
+
+const openCreate = () => { editingEnrollmentId.value = null; form.value = defaultForm(); showModal.value = true }
+
+const openEdit = (enrollment) => {
+  editingEnrollmentId.value = enrollment.enrollment_id
+  form.value = {
+    student_id: String(enrollment.student_id || ''),
+    section_id: String(enrollment.section_id || ''),
+    enrollment_status: enrollment.enrollment_status || 'enrolled',
+    grade: enrollment.grade || '', grade_points: enrollment.grade_points ?? '',
+    credits_earned: enrollment.credits_earned ?? '',
+    attendance_percentage: enrollment.attendance_percentage ?? '',
+    midterm_grade: enrollment.midterm_grade || '', final_grade: enrollment.final_grade || '',
+    is_audit: enrollment.is_audit ?? false, withdrawal_reason: enrollment.withdrawal_reason || '',
+  }
+  showModal.value = true
+}
+
+const closeModal = () => { showModal.value = false; editingEnrollmentId.value = null }
+
+const buildCreatePayload = () => ({
+  ...pick(form.value, ['enrollment_status', 'is_audit']),
+  student_id: String(form.value.student_id), section_id: Number(form.value.section_id),
+})
+
+const buildUpdatePayload = () => ({
+  student_id: String(form.value.student_id),
+  section_id: Number(form.value.section_id),
+  ...pick(form.value, ['enrollment_status', 'is_audit']),
+  grade: toNullableString(form.value.grade),
+  grade_points: form.value.grade_points === '' ? null : Number(form.value.grade_points),
+  credits_earned: form.value.credits_earned === '' ? null : Number(form.value.credits_earned),
+  attendance_percentage: form.value.attendance_percentage === '' ? null : Number(form.value.attendance_percentage),
+  midterm_grade: toNullableString(form.value.midterm_grade),
+  final_grade: toNullableString(form.value.final_grade),
+  withdrawal_reason: toNullableString(form.value.withdrawal_reason),
+})
+
+const saveEnrollment = async () => {
+  saving.value = true; error.value = ''
+  try {
+    if (editingEnrollmentId.value) { await updateEnrollment(editingEnrollmentId.value, buildUpdatePayload()) }
+    else { await createEnrollment(buildCreatePayload()) }
+    closeModal(); await loadEnrollments()
+  } catch (err) { error.value = getApiError(err, 'Failed to save enrollment') }
+  finally { saving.value = false }
+}
+
+const removeEnrollment = async (enrollmentId) => {
+  if (!confirm('Delete this enrollment?')) return
+  error.value = ''
+  try { await deleteEnrollment(enrollmentId); await loadEnrollments() }
+  catch (err) { error.value = getApiError(err, 'Failed to delete enrollment') }
+}
+
+const studentLabelById = (studentId) => {
+  const match = students.value.find((student) => student.student_id === studentId)
+  if (!match) return studentId
+  const name = match.user?.personal_info
+    ? `${match.user.personal_info.first_name} ${match.user.personal_info.last_name}`
+    : match.user?.email || ''
+  return name ? `${match.student_number} - ${name}` : match.student_number
+}
+
+const sectionLabelById = (sectionId) => {
+  const match = sections.value.find((section) => section.section_id === sectionId)
+  if (!match) return `ID ${sectionId}`
+  const courseLabel = match.course?.course_code || `Course ${match.course_id}`
+  return `${courseLabel} - Sec ${match.section_number}`
+}
+
+onMounted(loadEnrollments)
+</script>
+
+<template>
+  <div>
+    <div class="admin-page-header">
+      <h1>Enrollments</h1>
+      <button class="admin-btn-add" @click="openCreate">+ Add Enrollment</button>
+    </div>
+
+    <div v-if="error" class="admin-error">{{ error }}</div>
+    <div v-if="loading" class="admin-loading">Loading enrollments...</div>
+
+    <div v-else class="admin-table-card">
+      <div class="admin-record-count">{{ total }} enrollment(s)</div>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Student</th>
+            <th>Section</th>
+            <th>Status</th>
+            <th>Grade</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="enrollment in enrollments" :key="enrollment.enrollment_id">
+            <td class="cell-primary">{{ enrollment.enrollment_id }}</td>
+            <td>{{ studentLabelById(enrollment.student_id) }}</td>
+            <td>{{ sectionLabelById(enrollment.section_id) }}</td>
+            <td>{{ enrollment.enrollment_status }}</td>
+            <td>{{ enrollment.grade || '-' }}</td>
+            <td>
+              <button class="admin-action-btn admin-action-edit" @click="openEdit(enrollment)">Edit</button>
+              <button class="admin-action-btn admin-action-delete"
+                @click="removeEnrollment(enrollment.enrollment_id)">Delete</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div v-if="showModal" class="admin-modal-overlay">
+      <div class="admin-modal admin-modal-lg">
+        <h2>{{ editingEnrollmentId ? 'Edit Enrollment' : 'Create Enrollment' }}</h2>
+        <form class="admin-form-grid" @submit.prevent="saveEnrollment">
+          <div>
+            <label class="form-label">Student</label>
+            <select v-model="form.student_id" required>
+              <option value="" disabled>Select student</option>
+              <option v-for="student in students" :key="student.student_id" :value="String(student.student_id)">{{
+                student.student_number }} - {{
+                student.user?.personal_info
+                  ? `${student.user.personal_info.first_name} ${student.user.personal_info.last_name}`
+                  : student.user?.email || 'Unknown Student' }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Course</label>
+            <select v-model="form.section_id" required>
+              <option value="" disabled>Select section</option>
+              <option v-for="section in sections" :key="section.section_id" :value="String(section.section_id)">{{
+                section.course?.course_code || `Course ${section.course_id}` }} - Sec {{ section.section_number }}
+              </option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Enrollment Status</label>
+            <select v-model="form.enrollment_status">
+              <option value="enrolled">Enrolled</option>
+              <option value="dropped">Dropped</option>
+              <option value="withdrawn">Withdrawn</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+          <label class="admin-checkbox-row"><input v-model="form.is_audit" type="checkbox" /> Audit Course</label>
+          <div>
+            <label class="form-label">Grade</label>
+            <select v-model="form.grade">
+              <option value="">Select Grade</option>
+              <option value="S1">Semester 1</option>
+              <option value="S2">Semester 2</option>
+            </select>
+          </div>
+          <div><label class="form-label">GPA</label><input v-model="form.grade_points" type="number" step="0.01" min="0"
+              max="4.0" /></div>
+          <div><label class="form-label">Credits Earned</label><input v-model="form.credits_earned" type="number"
+              min="0" /></div>
+          <div><label class="form-label">Attendance %</label><input v-model="form.attendance_percentage" type="number"
+              step="0.01" min="0" max="100" /></div>
+          <div>
+            <label class="form-label">Midterm Grade</label>
+            <select v-model="form.midterm_grade">
+              <option value="">Select Grade</option>
+              <option value="Y1">Year 1</option>
+              <option value="Y2">Year 2</option>
+              <option value="Y3">Year 3</option>
+              <option value="Y4">Year 4</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Final Grade</label>
+            <select v-model="form.final_grade">
+              <option value="">Select Grade</option>
+              <option value="Y1">Year 1</option>
+              <option value="Y2">Year 2</option>
+              <option value="Y3">Year 3</option>
+              <option value="Y4">Year 4</option>
+            </select>
+          </div>
+          <div class="col-span-full"><label class="form-label">Withdrawal Reason</label><textarea
+              v-model="form.withdrawal_reason" rows="3" /></div>
+          <div class="admin-form-actions">
+            <button type="button" class="admin-btn-cancel" @click="closeModal">Cancel</button>
+            <button :disabled="saving" type="submit" class="admin-btn-save">{{ saving ? 'Saving...' : 'Save' }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</template>
