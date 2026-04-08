@@ -5,16 +5,15 @@ services:
     container_name: school_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: school_system_db
-      POSTGRES_USER: school_admin
-      POSTGRES_PASSWORD: school_pass_2024
+      POSTGRES_DB: school_system_db_v2
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./school_system_db_v2.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U school_admin -d school_system_db_v2"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d school_system_db_v2"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,8 +28,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:123@localhost:5432/school_system_db_v2
-      DATABASE_URL_SYNC: postgresql://postgres:123@localhost:5432/school_system_db_v2
+      DATABASE_URL: postgresql+asyncpg://postgres:123@db:5432/school_system_db_v2
+      DATABASE_URL_SYNC: postgresql://postgres:123@db:5432/school_system_db_v2
       DEBUG: "true"
       SECRET_KEY: docker-secret-key-change-in-production
       CORS_ORIGINS: "http://localhost:5173,http://localhost:3001,http://frontend:5173"
@@ -51,7 +50,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      VITE_API_URL: http://localhost:8000
+      VITE_API_URL: http://backend:8000
     depends_on:
       - backend
     volumes:
