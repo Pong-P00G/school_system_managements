@@ -77,8 +77,7 @@ async def get_enrollment(enrollment_id: int, db: AsyncSession = Depends(get_db))
 
 @router.post("/", response_model=EnrollmentOut, status_code=status.HTTP_201_CREATED)
 async def create_enrollment(data: EnrollmentCreate, db: AsyncSession = Depends(get_db)):
-    """Create a new enrollment (enroll a student in a course section)."""
-    # Check if student exists
+
     student_result = await db.execute(select(Student).where(Student.student_id == data.student_id))
     student = student_result.scalar_one_or_none()
     if not student:
@@ -125,7 +124,7 @@ async def create_enrollment(data: EnrollmentCreate, db: AsyncSession = Depends(g
 
 @router.put("/{enrollment_id}", response_model=EnrollmentOut)
 async def update_enrollment(enrollment_id: int, data: EnrollmentUpdate, db: AsyncSession = Depends(get_db)):
-    # Update an existing enrollment (e.g., assign grade, change status)
+
     result = await db.execute(select(Enrollment).where(Enrollment.enrollment_id == enrollment_id))
     enrollment = result.scalar_one_or_none()
     if not enrollment:
@@ -190,7 +189,6 @@ async def update_enrollment(enrollment_id: int, data: EnrollmentUpdate, db: Asyn
 
 @router.delete("/{enrollment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_enrollment(enrollment_id: int, db: AsyncSession = Depends(get_db)):
-    # Delete an enrollment (withdraw student from section).
     result = await db.execute(
         select(Enrollment)
         .options(selectinload(Enrollment.section))
@@ -215,7 +213,7 @@ async def withdraw_from_enrollment(
     reason: str | None = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Withdraw from an enrollment (soft delete by changing status)."""
+
     from datetime import datetime
 
     result = await db.execute(select(Enrollment).where(Enrollment.enrollment_id == enrollment_id))
@@ -254,7 +252,7 @@ async def submit_grade(
     graded_by: UUID | None = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Submit a grade for an enrollment."""
+
     from datetime import datetime
 
     result = await db.execute(select(Enrollment).where(Enrollment.enrollment_id == enrollment_id))

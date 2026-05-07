@@ -20,6 +20,6 @@ const LucideIcon = computed(() => {
 
 <template>
     <i v-if="isMdi"
-        :class="['mdi', props.name.startsWith('mdi-') ? props.name : '', size, 'inline-flex items-center justify-center translate-y-[2px]']"></i>
+        :class="['mdi', props.name.startsWith('mdi-') ? props.name : '', size, 'inline-flex items-center justify-center translate-y-0.5']"></i>
     <component v-else :is="LucideIcon" :class="size" />
 </template>

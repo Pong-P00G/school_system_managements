@@ -151,7 +151,7 @@ const handleDeleteAssignment = async (asnId) => {
               <td colspan="6" class="px-6 py-8 text-center text-ink-muted">No assignments created yet.</td>
             </tr>
             <tr v-for="asn in assignments" :key="asn.assignment_id"
-              class="border-b border-border-light last:border-b-0 hover:bg-primary/[0.025] transition-colors">
+              class="border-b border-border-light last:border-b-0 hover:bg-primary/2.5 transition-colors">
               <td class="px-6 py-3.5 text-sm font-medium text-ink">{{ asn.assignment_name }}</td>
               <td class="px-6 py-3.5"><span
                   class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-sage/15 text-[#5e6e5f]">{{
@@ -165,11 +165,11 @@ const handleDeleteAssignment = async (asnId) => {
               <td class="px-6 py-3.5 text-right">
                 <div class="flex justify-end gap-1">
                   <button @click="openAssignmentModal('edit', asn)"
-                    class="w-8 h-8 rounded-lg bg-transparent border-none text-ink-muted text-base flex items-center justify-center cursor-pointer transition-all hover:bg-info/[0.08] hover:text-info">
+                    class="w-8 h-8 rounded-lg bg-transparent border-none text-ink-muted text-base flex items-center justify-center cursor-pointer transition-all hover:bg-info/2.5 hover:text-info">
                     <Icons name="mdi-pencil" />
                   </button>
                   <button @click="handleDeleteAssignment(asn.assignment_id)"
-                    class="w-8 h-8 rounded-lg bg-transparent border-none text-ink-muted text-base flex items-center justify-center cursor-pointer transition-all hover:bg-error/[0.08] hover:text-error">
+                    class="w-8 h-8 rounded-lg bg-transparent border-none text-ink-muted text-base flex items-center justify-center cursor-pointer transition-all hover:bg-error/2.5 hover:text-error">
                     <Icons name="mdi-delete" />
                   </button>
                 </div>
@@ -214,7 +214,7 @@ const handleDeleteAssignment = async (asnId) => {
               <td colspan="5" class="px-6 py-6 text-center text-ink-muted italic">Gathering student data...</td>
             </tr>
             <tr v-for="enr in enrollments" :key="enr.enrollment_id"
-              class="border-b border-border-light last:border-b-0 hover:bg-primary/[0.025] transition-colors">
+              class="border-b border-border-light last:border-b-0 hover:bg-primary/2.5 transition-colors">
               <td class="px-6 py-3.5">
                 <div class="flex items-center">
                   <div
@@ -265,7 +265,7 @@ const handleDeleteAssignment = async (asnId) => {
         <div class="flex items-center justify-between px-6 py-5 border-b border-border-light bg-page">
           <h3 class="text-lg font-semibold text-ink m-0">{{ modalMode === 'create' ? 'Create Assignment' : 'Edit Assignment' }}</h3>
           <button @click="showAssignmentModal = false"
-            class="w-8 h-8 rounded-lg bg-transparent border-none text-ink-muted text-base flex items-center justify-center cursor-pointer hover:bg-primary/[0.05]">
+            class="w-8 h-8 rounded-lg bg-transparent border-none text-ink-muted text-base flex items-center justify-center cursor-pointer hover:bg-primary/2.5 transition-all">
             <Icons name="mdi-close" />
           </button>
         </div>
@@ -318,7 +318,7 @@ const handleDeleteAssignment = async (asnId) => {
         </form>
         <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-border-light bg-page">
           <button type="button" @click="showAssignmentModal = false"
-            class="inline-flex items-center px-4 py-2 bg-transparent text-primary border-[1.5px] border-border-medium rounded-xl font-sans text-sm font-medium cursor-pointer transition-all hover:border-primary hover:bg-primary/[0.05]">Cancel</button>
+            class="inline-flex items-center px-4 py-2 bg-transparent text-primary border-[1.5px] border-border-medium rounded-xl font-sans text-sm font-medium cursor-pointer transition-all hover:border-primary hover:bg-primary/2.5 ">Cancel</button>
           <button @click="handleSaveAssignment"
             class="inline-flex items-center px-5 py-2 bg-coral text-white border-none rounded-xl font-sans text-sm font-medium cursor-pointer transition-all hover:bg-coral-hover hover:shadow-[0_4px_12px_rgba(224,122,95,0.3)]">{{
               modalMode === 'create' ? 'Create' : 'Save Changes' }}</button>

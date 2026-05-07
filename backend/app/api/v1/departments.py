@@ -1,5 +1,3 @@
-"""Department management endpoints with full CRUD operations."""
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -21,7 +19,6 @@ async def list_departments(
     is_active: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """List departments with pagination and optional search filter."""
     query = select(Department)
     count_query = select(func.count(Department.department_id))
 
@@ -64,8 +61,7 @@ async def get_department(department_id: int, db: AsyncSession = Depends(get_db))
 
 @router.post("/", response_model=DepartmentOut, status_code=status.HTTP_201_CREATED)
 async def create_department(data: DepartmentCreate, db: AsyncSession = Depends(get_db)):
-    """Create a new department."""
-    # Check for existing code or name
+
     existing = await db.execute(
         select(Department).where(
             (Department.department_code == data.department_code) |
@@ -91,7 +87,7 @@ async def update_department(
     data: DepartmentUpdate, 
     db: AsyncSession = Depends(get_db)
 ):
-    """Update an existing department."""
+
     result = await db.execute(
         select(Department).where(Department.department_id == department_id)
     )
@@ -101,7 +97,7 @@ async def update_department(
 
     update_data = data.model_dump(exclude_unset=True)
     
-    # Check for conflicts if updating code or name
+
     if "department_code" in update_data or "department_name" in update_data:
         existing = await db.execute(
             select(Department).where(
@@ -129,7 +125,6 @@ async def update_department(
 
 @router.delete("/{department_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_department(department_id: int, db: AsyncSession = Depends(get_db)):
-    """Delete a department (soft delete by setting is_active to False)."""
     result = await db.execute(
         select(Department).where(Department.department_id == department_id)
     )
@@ -149,7 +144,6 @@ async def get_department_courses(
     limit: int = Query(20, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all courses for a department."""
     from app.models.academic import Course
     from app.schemas.academic import CourseListOut, CourseOut
 

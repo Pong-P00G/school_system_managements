@@ -1,12 +1,10 @@
-"""Assignment management endpoints with full CRUD operations."""
-
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
-from app.models.people import Assignment
+from app.models.people import Assignment , AssignmentTeamMember , Student
 from app.models.academic import CourseSection
 from app.schemas.people import (
     AssignmentOut, AssignmentListOut, AssignmentCreate, AssignmentUpdate
@@ -26,7 +24,6 @@ async def list_assignments(
     is_published: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """List assignments with optional filters and pagination."""
     query = select(Assignment)
     count_query = select(func.count(Assignment.assignment_id))
 
@@ -54,7 +51,7 @@ async def list_assignments(
 
 @router.get("/{assignment_id}", response_model=AssignmentOut)
 async def get_assignment(assignment_id: int, db: AsyncSession = Depends(get_db)):
-    """Get a single assignment by ID."""
+
     result = await db.execute(
         select(Assignment).where(Assignment.assignment_id == assignment_id)
     )
@@ -70,8 +67,7 @@ async def create_new_assignment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new assignment."""
-    # Check if section exists
+
     section_result = await db.execute(select(CourseSection).where(CourseSection.section_id == data.section_id))
     if not section_result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course section not found")
@@ -90,7 +86,7 @@ async def update_existing_assignment(
     data: AssignmentUpdate, 
     db: AsyncSession = Depends(get_db)
 ):
-    """Update an existing assignment."""
+
     result = await db.execute(select(Assignment).where(Assignment.assignment_id == assignment_id))
     assignment = result.scalar_one_or_none()
     if not assignment:
@@ -107,7 +103,7 @@ async def update_existing_assignment(
 
 @router.delete("/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_assignment(assignment_id: int, db: AsyncSession = Depends(get_db)):
-    """Delete an assignment."""
+
     result = await db.execute(select(Assignment).where(Assignment.assignment_id == assignment_id))
     assignment = result.scalar_one_or_none()
     if not assignment:
@@ -121,7 +117,6 @@ async def remove_assignment(assignment_id: int, db: AsyncSession = Depends(get_d
     return None
 
 
-# --- Assignment Teams ---
 
 @router.post("/{assignment_id}/teams", status_code=status.HTTP_201_CREATED)
 async def create_assignment_team(
@@ -129,10 +124,9 @@ async def create_assignment_team(
     name: str = Query(..., min_length=1),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new team for an assignment."""
+
     from app.models.groups import AssignmentTeam
     
-    # Verify assignment exists
     assignment = await db.scalar(select(Assignment).where(Assignment.assignment_id == assignment_id))
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
@@ -148,7 +142,7 @@ async def get_assignment_teams(
     assignment_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all teams for an assignment with members."""
+
     from app.models.groups import AssignmentTeam
     
     result = await db.execute(
@@ -186,14 +180,13 @@ async def add_team_member(
     student_id: UUID = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Add a student to a team."""
     from app.models.groups import AssignmentTeam, AssignmentTeamMember
     
     team = await db.scalar(select(AssignmentTeam).where(AssignmentTeam.team_id == team_id))
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
-    # Check member existence
+
     existing = await db.scalar(
         select(AssignmentTeamMember).where(
             AssignmentTeamMember.team_id == team_id,
@@ -215,7 +208,7 @@ async def remove_team_member(
     student_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove a student from a team."""
+
     from app.models.groups import AssignmentTeamMember
     
     member = await db.scalar(
