@@ -1,5 +1,3 @@
-"""Authentication endpoints (placeholder)."""
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -13,7 +11,7 @@ router = APIRouter()
 
 @router.post("/login", response_model=TokenResponse)
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """Authenticate user and return JWT token."""
+
     result = await db.execute(select(User).where(User.username == request.username))
     user = result.scalar_one_or_none()
 
@@ -36,8 +34,7 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(request: UserCreate, db: AsyncSession = Depends(get_db)):
-    """Register a new user."""
-    # Check existing
+
     existing = await db.execute(
         select(User).where((User.username == request.username) | (User.email == request.email))
     )

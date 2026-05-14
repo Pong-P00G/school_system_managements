@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 sqlalchemy==2.0.35
@@ -16,3 +17,21 @@ httpx==0.27.2
 pytest==8.3.3
 pytest-asyncio==0.24.0
 prometheus-client==0.21.0
+=======
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+asyncpg
+psycopg2-binary
+python-dotenv
+pydantic
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+httpx
+pytest
+pytest-asyncio
+prometheus-client
+>>>>>>> a1077c5da31aaef6385c7850c5580088169ce36c

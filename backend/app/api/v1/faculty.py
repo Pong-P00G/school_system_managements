@@ -14,11 +14,6 @@ from app.api.deps import get_current_user
 
 router = APIRouter()
 
-
-# ──────────────────────────────────────────────
-# /me  endpoints  (MUST come BEFORE /{faculty_id})
-# ──────────────────────────────────────────────
-
 @router.get("/me")
 async def get_my_faculty_profile(
     current_user: User = Depends(get_current_user),
@@ -53,7 +48,7 @@ async def get_my_sections(
             selectinload(CourseSection.course),
             selectinload(CourseSection.term),
             selectinload(CourseSection.room),
-            selectinload(CourseSection.enrollments) # For student counts
+            selectinload(CourseSection.enrollments)
         )
         .where(CourseSection.instructor_id == current_user.user_id)
         .order_by(CourseSection.start_date.desc())
@@ -69,7 +64,7 @@ async def get_faculty_assignments(
     faculty_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
-    # 1. Get section IDs taught by this faculty
+
     sections_result = await db.execute(
         select(CourseSection.section_id)
         .where(CourseSection.instructor_id == faculty_id)
@@ -79,7 +74,7 @@ async def get_faculty_assignments(
     if not section_ids:
         return {"assignments": []}
 
-    # 2. Get assignments for these sections
+
     assignments_result = await db.execute(
         select(Assignment)
         .options(
@@ -89,8 +84,7 @@ async def get_faculty_assignments(
         .order_by(Assignment.due_date.desc())
     )
     assignments = assignments_result.scalars().all()
-    
-    # Custom response format to include course info directly
+
     out = []
     for a in assignments:
         course = a.section.course if a.section else None
@@ -172,13 +166,13 @@ async def get_faculty(faculty_id: UUID, db: AsyncSession = Depends(get_db)):
 
 @router.post("/", response_model=FacultyOut, status_code=status.HTTP_201_CREATED)
 async def create_faculty(data: FacultyCreate, db: AsyncSession = Depends(get_db)):
-    # Check if user exists
+
     user_result = await db.execute(select(User).where(User.user_id == data.user_id))
     user = user_result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Check if faculty already exists for this user
+
     existing_faculty = await db.execute(
         select(Faculty).where(Faculty.faculty_id == data.user_id)
     )
@@ -188,7 +182,7 @@ async def create_faculty(data: FacultyCreate, db: AsyncSession = Depends(get_db)
             detail="Faculty profile already exists for this user"
         )
 
-    # Check for duplicate employee number
+
     existing_number = await db.execute(
         select(Faculty).where(Faculty.employee_number == data.employee_number)
     )
@@ -198,7 +192,6 @@ async def create_faculty(data: FacultyCreate, db: AsyncSession = Depends(get_db)
             detail="Employee number already exists"
         )
 
-    # Verify department exists
     dept_result = await db.execute(
         select(Department).where(Department.department_id == data.department_id)
     )
@@ -227,7 +220,6 @@ async def update_faculty(faculty_id: UUID, data: FacultyUpdate, db: AsyncSession
 
     update_data = data.model_dump(exclude_unset=True)
 
-    # Check for duplicate employee number if updating
     if "employee_number" in update_data:
         existing = await db.execute(
             select(Faculty).where(
@@ -241,7 +233,6 @@ async def update_faculty(faculty_id: UUID, data: FacultyUpdate, db: AsyncSession
                 detail="Employee number already exists"
             )
 
-    # Verify department exists if updating
     if "department_id" in update_data:
         dept_result = await db.execute(
             select(Department).where(Department.department_id == update_data["department_id"])
