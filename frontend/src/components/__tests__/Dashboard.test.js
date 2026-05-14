@@ -9,7 +9,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import Dashboard from '../../pages/Dashboard.vue'
 
 // Mock the API module
-vi.mock('../../api.js', () => ({
+vi.mock('../../services/api.js', () => ({
   getHealth: vi.fn(() =>
     Promise.resolve({
       data: { status: 'healthy', app: 'School Management System API', version: '1.0.0' },
