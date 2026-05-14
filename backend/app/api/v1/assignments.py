@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import ProgrammingError
 from app.core.database import get_db
 from app.models.people import Assignment
 from app.models.academic import CourseSection
@@ -15,6 +16,9 @@ from app.api.deps import get_current_user
 from app.models.user import User
 
 router = APIRouter()
+
+
+TEAM_FEATURE_UNAVAILABLE = "Assignment team features are unavailable until the database migrations for team tables are applied."
 
 
 @router.get("/", response_model=AssignmentListOut)
@@ -132,15 +136,19 @@ async def create_assignment_team(
     """Create a new team for an assignment."""
     from app.models.groups import AssignmentTeam
     
-    # Verify assignment exists
-    assignment = await db.scalar(select(Assignment).where(Assignment.assignment_id == assignment_id))
-    if not assignment:
-        raise HTTPException(status_code=404, detail="Assignment not found")
+    try:
+        # Verify assignment exists
+        assignment = await db.scalar(select(Assignment).where(Assignment.assignment_id == assignment_id))
+        if not assignment:
+            raise HTTPException(status_code=404, detail="Assignment not found")
 
-    team = AssignmentTeam(assignment_id=assignment_id, name=name)
-    db.add(team)
-    await db.commit()
-    return {"team_id": team.team_id, "name": team.name, "assignment_id": team.assignment_id}
+        team = AssignmentTeam(assignment_id=assignment_id, name=name)
+        db.add(team)
+        await db.commit()
+        return {"team_id": team.team_id, "name": team.name, "assignment_id": team.assignment_id}
+    except ProgrammingError:
+        await db.rollback()
+        raise HTTPException(status_code=503, detail=TEAM_FEATURE_UNAVAILABLE)
 
 
 @router.get("/{assignment_id}/teams")
@@ -149,15 +157,20 @@ async def get_assignment_teams(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all teams for an assignment with members."""
-    from app.models.groups import AssignmentTeam
+    from app.models.groups import AssignmentTeam, AssignmentTeamMember
+    from app.models.people import Student
     
-    result = await db.execute(
-        select(AssignmentTeam)
-        .options(selectinload(AssignmentTeam.members).selectinload(AssignmentTeamMember.student).selectinload(Student.user))
-        .where(AssignmentTeam.assignment_id == assignment_id)
-        .order_by(AssignmentTeam.name)
-    )
-    teams = result.scalars().all()
+    try:
+        result = await db.execute(
+            select(AssignmentTeam)
+            .options(selectinload(AssignmentTeam.members).selectinload(AssignmentTeamMember.student).selectinload(Student.user))
+            .where(AssignmentTeam.assignment_id == assignment_id)
+            .order_by(AssignmentTeam.name)
+        )
+        teams = result.scalars().all()
+    except ProgrammingError:
+        await db.rollback()
+        return []
     
     # Format response
     out = []
@@ -165,7 +178,12 @@ async def get_assignment_teams(
         members = []
         for m in t.members:
             user = m.student.user
-            name = f"{user.personal_info['first_name']} {user.personal_info['last_name']}" if user.personal_info else user.username
+            if user and user.personal_info:
+                first_name = user.personal_info.first_name or ""
+                last_name = user.personal_info.last_name or ""
+                name = f"{first_name} {last_name}".strip() or user.username
+            else:
+                name = user.username if user else str(m.student_id)
             members.append({
                 "student_id": m.student_id,
                 "name": name,
@@ -189,24 +207,28 @@ async def add_team_member(
     """Add a student to a team."""
     from app.models.groups import AssignmentTeam, AssignmentTeamMember
     
-    team = await db.scalar(select(AssignmentTeam).where(AssignmentTeam.team_id == team_id))
-    if not team:
-        raise HTTPException(status_code=404, detail="Team not found")
+    try:
+        team = await db.scalar(select(AssignmentTeam).where(AssignmentTeam.team_id == team_id))
+        if not team:
+            raise HTTPException(status_code=404, detail="Team not found")
 
-    # Check member existence
-    existing = await db.scalar(
-        select(AssignmentTeamMember).where(
-            AssignmentTeamMember.team_id == team_id,
-            AssignmentTeamMember.student_id == student_id
+        # Check member existence
+        existing = await db.scalar(
+            select(AssignmentTeamMember).where(
+                AssignmentTeamMember.team_id == team_id,
+                AssignmentTeamMember.student_id == student_id
+            )
         )
-    )
-    if existing:
-        raise HTTPException(status_code=409, detail="Student already in this team")
+        if existing:
+            raise HTTPException(status_code=409, detail="Student already in this team")
 
-    member = AssignmentTeamMember(team_id=team_id, student_id=student_id)
-    db.add(member)
-    await db.commit()
-    return {"message": "Member added"}
+        member = AssignmentTeamMember(team_id=team_id, student_id=student_id)
+        db.add(member)
+        await db.commit()
+        return {"message": "Member added"}
+    except ProgrammingError:
+        await db.rollback()
+        raise HTTPException(status_code=503, detail=TEAM_FEATURE_UNAVAILABLE)
 
 
 @router.delete("/teams/{team_id}/members/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -218,15 +240,19 @@ async def remove_team_member(
     """Remove a student from a team."""
     from app.models.groups import AssignmentTeamMember
     
-    member = await db.scalar(
-        select(AssignmentTeamMember).where(
-            AssignmentTeamMember.team_id == team_id,
-            AssignmentTeamMember.student_id == student_id
+    try:
+        member = await db.scalar(
+            select(AssignmentTeamMember).where(
+                AssignmentTeamMember.team_id == team_id,
+                AssignmentTeamMember.student_id == student_id
+            )
         )
-    )
-    if not member:
-        raise HTTPException(status_code=404, detail="Member not found in team")
+        if not member:
+            raise HTTPException(status_code=404, detail="Member not found in team")
 
-    await db.delete(member)
-    await db.commit()
+        await db.delete(member)
+        await db.commit()
+    except ProgrammingError:
+        await db.rollback()
+        raise HTTPException(status_code=503, detail=TEAM_FEATURE_UNAVAILABLE)
 

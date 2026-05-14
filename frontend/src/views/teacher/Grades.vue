@@ -30,7 +30,7 @@ const fetchData = async () => {
   if (!authStore.user?.user_id) return
   loading.value = true
   try {
-    const secRes = await getFacultySections(authStore.user.user_id)
+    const secRes = await getFacultySections('me')
     sections.value = secRes.data.sections || []
     if (sections.value.length > 0 && !selectedSectionId.value) selectedSectionId.value = sections.value[0].section_id
     if (selectedSectionId.value) await fetchSectionDetails(selectedSectionId.value)

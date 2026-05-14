@@ -17,15 +17,19 @@ const loading = ref(true)
 const sections = ref([])
 const courses = ref([])
 const terms = ref([])
+const deliveryModeOptions = [
+  { value: 'in-person', label: 'In-Person' },
+  { value: 'online', label: 'Online' },
+  { value: 'hybrid', label: 'Hybrid' },
+]
 
 const showModal = ref(false)
 const modalMode = ref('create')
 const editingId = ref(null)
 const formData = ref({
   course_id: '', term_id: '', section_number: '', max_capacity: 30,
-  schedule_pattern: '', delivery_mode: 'In-Person', room_id: null
+  schedule_pattern: '', delivery_mode: 'in-person', room_id: null
 })
-const deliveryModes = ['In-Person', 'Online', 'Hybrid']
 
 // Add Student modal
 const showAddStudentModal = ref(false)
@@ -120,7 +124,7 @@ const fetchDropdowns = async () => {
 const fetchSections = async () => {
   loading.value = true
   try {
-    const response = await getFacultySections(authStore.user.user_id)
+    const response = await getFacultySections('me')
     sections.value = response.data.sections || []
   } catch (error) { console.error('Error fetching teacher courses:', error) }
   finally { loading.value = false }
@@ -130,14 +134,22 @@ onMounted(() => { fetchSections(); fetchDropdowns() })
 
 const handleCreateClasses = () => {
   modalMode.value = 'create'
-  formData.value = { course_id: '', term_id: terms.value[0]?.term_id || '', section_number: '', max_capacity: 30, schedule_pattern: '', delivery_mode: 'In-Person', room_id: null }
+  formData.value = { course_id: '', term_id: terms.value[0]?.term_id || '', section_number: '', max_capacity: 30, schedule_pattern: '', delivery_mode: 'in-person', room_id: null }
   showModal.value = true
 }
 
 const handleEditClass = (section) => {
   modalMode.value = 'edit'
   editingId.value = section.section_id
-  formData.value = { course_id: section.course_id, term_id: section.term_id, section_number: section.section_number, max_capacity: section.max_capacity, schedule_pattern: section.schedule_pattern, delivery_mode: section.delivery_mode, room_id: section.room_id }
+  formData.value = {
+    course_id: section.course_id,
+    term_id: section.term_id,
+    section_number: section.section_number,
+    max_capacity: section.max_capacity,
+    schedule_pattern: section.schedule_pattern,
+    delivery_mode: (section.delivery_mode || 'in-person').toLowerCase(),
+    room_id: section.room_id,
+  }
   showModal.value = true
 }
 
@@ -347,7 +359,7 @@ const getStudentName = (enr) => {
               <label class="block text-xs font-medium text-ink-secondary mb-1.5">Delivery</label>
               <select v-model="formData.delivery_mode"
                 class="w-full px-3.5 py-2.5 text-sm font-sans border-[1.5px] border-border-medium rounded-xl bg-surface text-ink transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(47,79,79,0.12)]">
-                <option v-for="m in deliveryModes" :key="m" :value="m">{{ m }}</option>
+                <option v-for="mode in deliveryModeOptions" :key="mode.value" :value="mode.value">{{ mode.label }}</option>
               </select>
             </div>
           </div>

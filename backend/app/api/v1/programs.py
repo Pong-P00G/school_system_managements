@@ -95,7 +95,8 @@ async def create_program(data: ProgramCreate, db: AsyncSession = Depends(get_db)
             detail="Department not found",
         )
 
-    program = Program(**data.model_dump())
+    payload = data.model_dump(exclude={"program_fee", "fee_per_year"})
+    program = Program(**payload)
     db.add(program)
     await db.flush()
     await db.refresh(program)
@@ -110,7 +111,7 @@ async def update_program(program_id: int, data: ProgramUpdate, db: AsyncSession 
     if not program:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Program not found")
 
-    update_data = data.model_dump(exclude_unset=True)
+    update_data = data.model_dump(exclude_unset=True, exclude={"program_fee", "fee_per_year"})
 
     # Check for conflicts if updating code or name
     if "program_code" in update_data or "program_name" in update_data:

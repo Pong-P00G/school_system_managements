@@ -14,6 +14,8 @@ from app.schemas.academic import (
 
 router = APIRouter()
 
+JOIN_CODE_UNAVAILABLE = "Class join codes are unavailable until the database migration for the join_code column is applied."
+
 
 @router.get("/", response_model=CourseSectionListOut)
 async def list_sections(
@@ -126,14 +128,7 @@ async def create_section(data: CourseSectionCreate, db: AsyncSession = Depends(g
     # Normalize delivery_mode to lowercase to match DB check constraint
     if section_data.get('delivery_mode'):
         section_data['delivery_mode'] = section_data['delivery_mode'].lower()
-    # Auto-generate join_code if not provided
-    if not section_data.get('join_code'):
-        while True:
-            code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
-            existing_code = await db.execute(select(CourseSection).where(CourseSection.join_code == code))
-            if not existing_code.scalar_one_or_none():
-                section_data['join_code'] = code
-                break
+    section_data.pop("join_code", None)
     section = CourseSection(**section_data)
     db.add(section)
     await db.flush()
@@ -387,52 +382,4 @@ async def join_section_by_code(
     db: AsyncSession = Depends(get_db),
 ):
     """Allow a student to join a course section using the class join code."""
-    from app.models.people import Enrollment, Student
-
-    # Find section by join code
-    section_result = await db.execute(
-        select(CourseSection)
-        .options(selectinload(CourseSection.course))
-        .where(CourseSection.join_code == join_code.strip().upper())
-    )
-    section = section_result.scalar_one_or_none()
-    if not section:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid class code. No section found.")
-
-    # Verify student exists
-    student_result = await db.execute(select(Student).where(Student.student_id == student_id))
-    student = student_result.scalar_one_or_none()
-    if not student:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
-
-    # Check capacity
-    if section.enrolled_count >= section.max_capacity:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This class is full.")
-
-    # Check if already enrolled
-    existing = await db.execute(
-        select(Enrollment).where(
-            Enrollment.section_id == section.section_id,
-            Enrollment.student_id == student_id
-        )
-    )
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You are already enrolled in this class.")
-
-    # Enroll
-    enrollment = Enrollment(
-        section_id=section.section_id,
-        student_id=student_id,
-        enrollment_status="enrolled",
-        enrollment_date=datetime.utcnow().date()
-    )
-    db.add(enrollment)
-    section.enrolled_count += 1
-    await db.commit()
-
-    return {
-        "message": "Successfully joined the class!",
-        "enrollment_id": enrollment.enrollment_id,
-        "course_name": section.course.course_name if section.course else None,
-        "section_number": section.section_number
-    }
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=JOIN_CODE_UNAVAILABLE)

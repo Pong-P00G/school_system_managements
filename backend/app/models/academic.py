@@ -1,6 +1,7 @@
 """Academic structure SQLAlchemy models matching school_system_db_v2.sql."""
 
 from datetime import datetime
+from decimal import Decimal
 from sqlalchemy import (
     Column, String, Boolean, DateTime, Integer, Text, Date, ForeignKey, Numeric, Time
 )
@@ -43,8 +44,6 @@ class Program(Base):
     degree_level = Column(String(50), nullable=False)
     duration_years = Column(Numeric(3, 1), nullable=True)
     total_credits_required = Column(Integer, nullable=False)
-    program_fee = Column(Numeric(10, 2), default=0.00) # Total Fee represents graduate price
-    fee_per_year = Column(Numeric(10, 2), default=0.00)
     description = Column(Text, nullable=True)
     coordinator_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True)
     accreditation_status = Column(String(50), nullable=True)
@@ -56,6 +55,14 @@ class Program(Base):
     # Relationships
     department = relationship("Department", back_populates="programs", lazy="selectin")
     students = relationship("Student", back_populates="program", lazy="selectin")
+
+    @property
+    def program_fee(self):
+        return Decimal("0.00")
+
+    @property
+    def fee_per_year(self):
+        return Decimal("0.00")
 
 
 class Course(Base):
@@ -170,7 +177,6 @@ class CourseSection(Base):
     delivery_mode = Column(String(20), nullable=False)
     meeting_url = Column(Text, nullable=True)
     syllabus_url = Column(Text, nullable=True)
-    join_code = Column(String(8), unique=True, nullable=True)
     status = Column(String(20), default="planned")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -181,3 +187,7 @@ class CourseSection(Base):
     room = relationship("Room", back_populates="sections")
     enrollments = relationship("Enrollment", back_populates="section", lazy="selectin")
     assignments = relationship("Assignment", back_populates="section", lazy="selectin")
+
+    @property
+    def join_code(self):
+        return None

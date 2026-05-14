@@ -20,10 +20,10 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 const healthStatus = ref(null)
 const dbStatus = ref(null)
 const loading = ref(true)
-const departments = ref([null])
-const courses = ref([null])
-const students = ref(null)
-const teachers = ref(null)
+const departments = ref({ departments: [], total: 0 })
+const courses = ref({ courses: [], total: 0 })
+const students = ref({ students: [], total: 0 })
+const teachers = ref({ faculty: [], total: 0 })
 const payments = ref([])
 
 // Chart Data
@@ -85,15 +85,15 @@ onMounted(async () => {
       getHealthDb()
     ])
 
-    departments.value = departmentsRes.status === 'fulfilled' ? departmentsRes.value.data : [null]
-    courses.value = coursesRes.status === 'fulfilled' ? coursesRes.value.data : [null]
-    students.value = studentsRes.status === 'fulfilled' ? studentsRes.value.data : null
-    teachers.value = facultyRes.status === 'fulfilled' ? facultyRes.value.data : null
+    departments.value = departmentsRes.status === 'fulfilled' ? departmentsRes.value.data : { departments: [], total: 0 }
+    courses.value = coursesRes.status === 'fulfilled' ? coursesRes.value.data : { courses: [], total: 0 }
+    students.value = studentsRes.status === 'fulfilled' ? studentsRes.value.data : { students: [], total: 0 }
+    teachers.value = facultyRes.status === 'fulfilled' ? facultyRes.value.data : { faculty: [], total: 0 }
 
     // Process Chart Data
     if (studentsRes.status === 'fulfilled' && programsRes.status === 'fulfilled') {
-      const studentsData = studentsRes.value.data.students
-      const programs = programsRes.value.data.programs
+      const studentsData = studentsRes.value.data.students || []
+      const programs = programsRes.value.data.programs || []
 
       const programCounts = {}
       studentsData.forEach(student => {

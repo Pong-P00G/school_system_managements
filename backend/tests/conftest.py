@@ -1,6 +1,7 @@
 """Pytest configuration and fixtures for backend tests."""
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 
@@ -10,7 +11,7 @@ def anyio_backend():
     return "asyncio"
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def client():
     """Async HTTP client for testing FastAPI endpoints."""
     transport = ASGITransport(app=app)
