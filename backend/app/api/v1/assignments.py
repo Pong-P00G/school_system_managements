@@ -149,27 +149,37 @@ async def get_assignment_teams(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all teams for an assignment with members."""
-    from app.models.groups import AssignmentTeam
-    
+    from app.models.groups import AssignmentTeam, AssignmentTeamMember
+    from app.models.people import Student
+    from app.models.user import User
+
     result = await db.execute(
         select(AssignmentTeam)
-        .options(selectinload(AssignmentTeam.members).selectinload(AssignmentTeamMember.student).selectinload(Student.user))
+        .options(
+            selectinload(AssignmentTeam.members)
+            .selectinload(AssignmentTeamMember.student)
+            .selectinload(Student.user)
+            .selectinload(User.personal_info)
+        )
         .where(AssignmentTeam.assignment_id == assignment_id)
         .order_by(AssignmentTeam.name)
     )
     teams = result.scalars().all()
-    
-    # Format response
+
     out = []
     for t in teams:
         members = []
         for m in t.members:
-            user = m.student.user
-            name = f"{user.personal_info['first_name']} {user.personal_info['last_name']}" if user.personal_info else user.username
+            user = m.student.user if m.student else None
+            info = user.personal_info if user else None
+            if info:
+                name = f"{info.first_name} {info.last_name}".strip()
+            else:
+                name = user.username if user else "Unknown"
             members.append({
                 "student_id": m.student_id,
                 "name": name,
-                "student_number": m.student.student_number,
+                "student_number": m.student.student_number if m.student else None,
                 "joined_at": m.joined_at
             })
         out.append({

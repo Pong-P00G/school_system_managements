@@ -215,7 +215,7 @@ async def get_section_enrollments(
 ):
     """Get all enrollments for a course section."""
     from app.models.people import Enrollment, Student
-    from app.models.user import User
+    from app.models.user import User, UserPersonalInfo
     from app.schemas.people import EnrollmentListOut, EnrollmentOut
     from sqlalchemy.orm import selectinload
 
@@ -230,10 +230,8 @@ async def get_section_enrollments(
 
     query = (
         select(Enrollment)
-        .join(Student, Enrollment.student_id == Student.student_id)
-        .join(User, Student.student_id == User.user_id)
         .options(
-            selectinload(Enrollment.student).selectinload(Student.user),
+            selectinload(Enrollment.student).selectinload(Student.user).selectinload(User.personal_info),
             selectinload(Enrollment.section).selectinload(CourseSection.course),
             selectinload(Enrollment.section).selectinload(CourseSection.term),
             selectinload(Enrollment.section).selectinload(CourseSection.room),
@@ -243,25 +241,25 @@ async def get_section_enrollments(
 
     if search:
         search_term = f"%{search}%"
-        query = query.where(
-            (User.first_name.ilike(search_term)) |
-            (User.last_name.ilike(search_term)) |
-            (User.email.ilike(search_term)) |
-            (Student.student_number.ilike(search_term))
+        matching_students = (
+            select(Student.student_id)
+            .join(User, Student.student_id == User.user_id)
+            .outerjoin(UserPersonalInfo, UserPersonalInfo.user_id == User.user_id)
+            .where(
+                UserPersonalInfo.first_name.ilike(search_term)
+                | UserPersonalInfo.last_name.ilike(search_term)
+                | User.email.ilike(search_term)
+                | User.username.ilike(search_term)
+                | Student.student_number.ilike(search_term)
+            )
         )
-        
-        # Update total count for filtered results
+
+        query = query.where(Enrollment.student_id.in_(matching_students))
+
         count_query = (
             select(func.count(Enrollment.enrollment_id))
-            .join(Student, Enrollment.student_id == Student.student_id)
-            .join(User, Student.student_id == User.user_id)
             .where(Enrollment.section_id == section_id)
-            .where(
-                (User.first_name.ilike(search_term)) |
-                (User.last_name.ilike(search_term)) |
-                (User.email.ilike(search_term)) |
-                (Student.student_number.ilike(search_term))
-            )
+            .where(Enrollment.student_id.in_(matching_students))
         )
         total_result = await db.execute(count_query)
         total = total_result.scalar()
