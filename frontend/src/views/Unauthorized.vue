@@ -18,7 +18,7 @@ const handleSwitchAccount = async () => {
 
 <template>
   <div class="auth-page relative z-50">
-    <div class="auth-card text-center relative z-[60]">
+    <div class="auth-card text-center relative z-60">
       <p class="text-xs uppercase tracking-[0.24em] text-amber-700/80">Access Restricted</p>
       <h1 class="mt-2 text-3xl font-semibold text-slate-900">You do not have permission</h1>
       <p class="mt-2 text-sm text-slate-600">Your account does not have access to this page.</p>
