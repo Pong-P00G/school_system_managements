@@ -18,7 +18,7 @@ router = APIRouter()
 @router.get("/", response_model=EnrollmentListOut)
 async def list_enrollments(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     student_id: UUID | None = Query(None),
     section_id: int | None = Query(None),
     enrollment_status: str | None = Query(None),

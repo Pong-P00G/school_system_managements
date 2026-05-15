@@ -8,6 +8,7 @@ from app.models.people import (
     Student, Faculty, Staff, Enrollment, Assignment, AssignmentSubmission,
     Attendance, StudentAccount, FinancialTransaction
 )
+from app.models.review import Review
 
 __all__ = [
     # User models
@@ -35,6 +36,8 @@ __all__ = [
     "FinancialTransaction",
     "AssignmentTeam",
     "AssignmentTeamMember",
+    # Review models
+    "Review",
 ]
 
 from app.models.groups import AssignmentTeam, AssignmentTeamMember

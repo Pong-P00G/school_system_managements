@@ -79,6 +79,7 @@ class Course(Base):
     # Relationships
     department = relationship("Department", back_populates="courses")
     sections = relationship("CourseSection", back_populates="course", lazy="selectin")
+    reviews = relationship("Review", back_populates="course")
 
 
 class AcademicTerm(Base):
@@ -103,6 +104,7 @@ class AcademicTerm(Base):
 
     # Relationships
     sections = relationship("CourseSection", back_populates="term", lazy="selectin")
+    reviews = relationship("Review", back_populates="term")
 
 
 class Building(Base):
@@ -177,6 +179,7 @@ class CourseSection(Base):
 
     # Relationships
     course = relationship("Course", back_populates="sections")
+    instructor = relationship("User", foreign_keys=[instructor_id], lazy="selectin")
     term = relationship("AcademicTerm", back_populates="sections")
     room = relationship("Room", back_populates="sections")
     enrollments = relationship("Enrollment", back_populates="section", lazy="selectin")

@@ -25,7 +25,7 @@ async def get_my_details(current_user: User = Depends(get_current_user)):
 @router.get("/", response_model=UserListOut)
 async def list_users(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     search: str | None = Query(None),
     is_active: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),

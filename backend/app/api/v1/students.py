@@ -155,7 +155,7 @@ async def get_my_assignments(
 @router.get("/", response_model=StudentListOut)
 async def list_students(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     program_id: int | None = Query(None),
     enrollment_status: str | None = Query(None),
     academic_standing: str | None = Query(None),
@@ -334,7 +334,7 @@ async def delete_student(student_id: UUID, db: AsyncSession = Depends(get_db)):
 async def get_student_enrollments(
     student_id: UUID,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all enrollments for a student."""

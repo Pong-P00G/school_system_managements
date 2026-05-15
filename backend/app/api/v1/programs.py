@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("/", response_model=ProgramListOut)
 async def list_programs(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     department_id: int | None = Query(None),
     degree_level: str | None = Query(None),
     search: str | None = Query(None),
@@ -166,7 +166,7 @@ async def delete_program(program_id: int, db: AsyncSession = Depends(get_db)):
 async def get_program_students(
     program_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all students enrolled in a program."""

@@ -19,7 +19,7 @@ router = APIRouter()
 @router.get("/", response_model=StaffListOut)
 async def list_staff(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     department_id: int | None = Query(None),
     employment_status: str | None = Query(None),
     job_category: str | None = Query(None),

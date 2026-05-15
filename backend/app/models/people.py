@@ -63,6 +63,7 @@ class Faculty(Base):
 
     # Relationships
     user = relationship("User", foreign_keys=[faculty_id], lazy="selectin")
+    reviews = relationship("Review", back_populates="faculty")
 
 
 class Staff(Base):
@@ -112,6 +113,7 @@ class Enrollment(Base):
     # Relationships
     student = relationship("Student", back_populates="enrollments")
     section = relationship("CourseSection", back_populates="enrollments")
+    reviews = relationship("Review", back_populates="enrollment", cascade="all, delete-orphan")
 
 
 

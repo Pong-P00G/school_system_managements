@@ -16,7 +16,7 @@ router = APIRouter()
 @router.get("/", response_model=DepartmentListOut)
 async def list_departments(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     search: str | None = Query(None),
     is_active: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),
@@ -146,7 +146,7 @@ async def delete_department(department_id: int, db: AsyncSession = Depends(get_d
 async def get_department_courses(
     department_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all courses for a department."""
@@ -175,7 +175,7 @@ async def get_department_courses(
 async def get_department_programs(
     department_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all programs for a department."""

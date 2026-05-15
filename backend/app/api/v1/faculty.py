@@ -109,7 +109,7 @@ async def get_faculty_assignments(
 @router.get("/", response_model=FacultyListOut)
 async def list_faculty(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     department_id: int | None = Query(None),
     employment_status: str | None = Query(None),
     faculty_rank: str | None = Query(None),
@@ -276,7 +276,7 @@ async def delete_faculty(faculty_id: UUID, db: AsyncSession = Depends(get_db)):
 async def get_faculty_sections(
     faculty_id: UUID,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     term_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):

@@ -16,7 +16,7 @@ router = APIRouter()
 @router.get("/", response_model=CourseListOut)
 async def list_courses(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     department_id: int | None = Query(None),
     search: str | None = Query(None),
     is_active: bool | None = Query(None),
@@ -160,7 +160,7 @@ async def delete_course(course_id: int, db: AsyncSession = Depends(get_db)):
 async def get_course_sections(
     course_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     term_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):

@@ -24,6 +24,10 @@ from app.schemas.people import (
     StudentAccountBase, StudentAccountCreate, StudentAccountUpdate, StudentAccountOut, StudentAccountListOut,
     FinancialTransactionBase, FinancialTransactionCreate, FinancialTransactionUpdate, FinancialTransactionOut, FinancialTransactionListOut
 )
+from app.schemas.review import (
+    ReviewBase, ReviewCreate, ReviewUpdate, ReviewOut, ReviewListOut,
+    ReviewSummaryOut, ReviewableEnrollmentOut,
+)
 
 __all__ = [
     # User schemas
@@ -131,4 +135,12 @@ __all__ = [
     "FinancialTransactionUpdate",
     "FinancialTransactionOut",
     "FinancialTransactionListOut",
+    # Review schemas
+    "ReviewBase",
+    "ReviewCreate",
+    "ReviewUpdate",
+    "ReviewOut",
+    "ReviewListOut",
+    "ReviewSummaryOut",
+    "ReviewableEnrollmentOut",
 ]
