@@ -51,6 +51,7 @@ services:
       - "3001:3001"
     environment:
       VITE_API_URL: http://localhost:8000
+      VITE_API_PROXY_TARGET: http://school_system_backend:8000
     depends_on:
       - backend
     volumes:
