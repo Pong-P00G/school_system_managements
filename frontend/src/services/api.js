@@ -141,7 +141,8 @@ export const getSection = (id) => api.get(`/sections/${id}`)
 export const createSection = (data) => api.post('/sections/', data)
 export const updateSection = (id, data) => api.put(`/sections/${id}`, data)
 export const deleteSection = (id) => api.delete(`/sections/${id}`)
-export const getSectionEnrollments = (id, search = null) => api.get(`/sections/${id}/enrollments`, { params: { search } })
+export const getSectionEnrollments = (id, search = null, skip = 0, limit = 100) =>
+  api.get(`/sections/${id}/enrollments`, { params: { skip, limit, search: search || null } })
 export const getSectionAssignments = (id) => api.get(`/sections/${id}/assignments`)
 
 // --- Assignments & Submissions ---
