@@ -1,3 +1,6 @@
+/**
+ * API client for communicating with the FastAPI backend.
+ */
 import axios from 'axios'
 
 const api = axios.create({
@@ -79,8 +82,8 @@ export const deleteProgram = (id) => api.delete(`/programs/${id}`)
 export const getProgramStudents = (id) => api.get(`/programs/${id}/students`)
 
 // --- Students ---
-export const getStudents = (skip = 0, limit = 20, programId = null, enrollmentStatus = null, academicStanding = null, search = null, searchName = null, searchUsername = null, searchStudentNumber = null) =>
-  api.get('/students/', { params: { skip, limit, program_id: programId, enrollment_status: enrollmentStatus, academic_standing: academicStanding, search, search_name: searchName, search_username: searchUsername, search_student_number: searchStudentNumber } })
+export const getStudents = (skip = 0, limit = 20, programId = null, enrollmentStatus = null, academicStanding = null, search = null) =>
+  api.get('/students/', { params: { skip, limit, program_id: programId, enrollment_status: enrollmentStatus, academic_standing: academicStanding, search } })
 export const getStudent = (id) => api.get(`/students/${id}`)
 export const createStudent = (data) => api.post('/students/', data)
 export const updateStudent = (id, data) => api.put(`/students/${id}`, data)
@@ -117,7 +120,7 @@ export const getEnrollment = (id) => api.get(`/enrollments/${id}`)
 export const createEnrollment = (data) => api.post('/enrollments/', data)
 export const updateEnrollment = (id, data) => api.put(`/enrollments/${id}`, data)
 export const deleteEnrollment = (id) => api.delete(`/enrollments/${id}`)
-export const withdrawEnrollment = (id, reason = null) => api.post(`/enrollments/${id}/withdraw`, null, { params: { reason } })
+export const withdrawEnrollment = (id, reason = null) => api.post(`/enrollments/${id}/withdraw`, { reason })
 export const submitGrade = (id, grade, gradePoints = null, gradedBy = null) =>
   api.post(`/enrollments/${id}/grade`, { grade, grade_points: gradePoints, graded_by: gradedBy })
 

@@ -1,13 +1,6 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import {
-  createEnrollment,
-  deleteEnrollment,
-  getEnrollments,
-  getSections,
-  getStudents,
-  updateEnrollment
-} from '../services/api'
+import { createEnrollment, deleteEnrollment, getEnrollments, getSections, getStudents, updateEnrollment } from '../services/api'
 import { getApiError, pick, toNullableString } from '../components/utils/crud'
 
 const enrollments = ref([])
@@ -32,7 +25,7 @@ const loadEnrollments = async () => {
   loading.value = true; error.value = ''
   try {
     const [enrollmentsRes, studentsRes, sectionsRes] = await Promise.all([
-      getEnrollments(0, 1000), getStudents(0, 1000), getSections(0, 1000),
+      getEnrollments(0, 200), getStudents(0, 200), getSections(0, 200),
     ])
     enrollments.value = enrollmentsRes.data.enrollments
     total.value = enrollmentsRes.data.total
@@ -67,8 +60,6 @@ const buildCreatePayload = () => ({
 })
 
 const buildUpdatePayload = () => ({
-  student_id: String(form.value.student_id),
-  section_id: Number(form.value.section_id),
   ...pick(form.value, ['enrollment_status', 'is_audit']),
   grade: toNullableString(form.value.grade),
   grade_points: form.value.grade_points === '' ? null : Number(form.value.grade_points),
@@ -98,18 +89,12 @@ const removeEnrollment = async (enrollmentId) => {
 
 const studentLabelById = (studentId) => {
   const match = students.value.find((student) => student.student_id === studentId)
-  if (!match) return studentId
-  const name = match.user?.personal_info
-    ? `${match.user.personal_info.first_name} ${match.user.personal_info.last_name}`
-    : match.user?.email || ''
-  return name ? `${match.student_number} - ${name}` : match.student_number
+  return match ? match.student_number : studentId
 }
 
 const sectionLabelById = (sectionId) => {
   const match = sections.value.find((section) => section.section_id === sectionId)
-  if (!match) return `ID ${sectionId}`
-  const courseLabel = match.course?.course_code || `Course ${match.course_id}`
-  return `${courseLabel} - Sec ${match.section_number}`
+  return match ? match.section_number : `ID ${sectionId}`
 }
 
 onMounted(loadEnrollments)
@@ -161,22 +146,18 @@ onMounted(loadEnrollments)
         <form class="admin-form-grid" @submit.prevent="saveEnrollment">
           <div>
             <label class="form-label">Student</label>
-            <select v-model="form.student_id" required>
+            <select v-model="form.student_id" :disabled="Boolean(editingEnrollmentId)" required>
               <option value="" disabled>Select student</option>
               <option v-for="student in students" :key="student.student_id" :value="String(student.student_id)">{{
-                student.student_number }} - {{
-                student.user?.personal_info
-                  ? `${student.user.personal_info.first_name} ${student.user.personal_info.last_name}`
-                  : student.user?.email || 'Unknown Student' }}</option>
+                student.student_number }}</option>
             </select>
           </div>
           <div>
-            <label class="form-label">Course</label>
-            <select v-model="form.section_id" required>
+            <label class="form-label">Section</label>
+            <select v-model="form.section_id" :disabled="Boolean(editingEnrollmentId)" required>
               <option value="" disabled>Select section</option>
               <option v-for="section in sections" :key="section.section_id" :value="String(section.section_id)">{{
-                section.course?.course_code || `Course ${section.course_id}` }} - Sec {{ section.section_number }}
-              </option>
+                section.section_number }} (Course {{ section.course_id }})</option>
             </select>
           </div>
           <div>

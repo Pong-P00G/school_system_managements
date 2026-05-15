@@ -1,3 +1,5 @@
+"""Course management endpoints with full CRUD operations."""
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -21,6 +23,7 @@ async def list_courses(
     course_level: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
+    """List courses with optional filters and pagination."""
     query = select(Course)
     count_query = select(func.count(Course.course_id))
 
@@ -59,6 +62,7 @@ async def list_courses(
 
 @router.get("/{course_id}", response_model=CourseOut)
 async def get_course(course_id: int, db: AsyncSession = Depends(get_db)):
+    """Get a single course by ID."""
     result = await db.execute(select(Course).where(Course.course_id == course_id))
     course = result.scalar_one_or_none()
     if not course:
@@ -68,7 +72,8 @@ async def get_course(course_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/", response_model=CourseOut, status_code=status.HTTP_201_CREATED)
 async def create_course(data: CourseCreate, db: AsyncSession = Depends(get_db)):
-
+    """Create a new course."""
+    # Check for existing course code
     existing = await db.execute(
         select(Course).where(Course.course_code == data.course_code)
     )
@@ -78,7 +83,7 @@ async def create_course(data: CourseCreate, db: AsyncSession = Depends(get_db)):
             detail="Course code already exists",
         )
 
-
+    # Verify department exists
     dept_result = await db.execute(
         select(Department).where(Department.department_id == data.department_id)
     )
@@ -97,7 +102,7 @@ async def create_course(data: CourseCreate, db: AsyncSession = Depends(get_db)):
 
 @router.put("/{course_id}", response_model=CourseOut)
 async def update_course(course_id: int, data: CourseUpdate, db: AsyncSession = Depends(get_db)):
-
+    """Update an existing course."""
     result = await db.execute(select(Course).where(Course.course_id == course_id))
     course = result.scalar_one_or_none()
     if not course:
@@ -105,7 +110,7 @@ async def update_course(course_id: int, data: CourseUpdate, db: AsyncSession = D
 
     update_data = data.model_dump(exclude_unset=True)
 
-
+    # Check for conflicts if updating course code
     if "course_code" in update_data:
         existing = await db.execute(
             select(Course).where(
@@ -119,6 +124,7 @@ async def update_course(course_id: int, data: CourseUpdate, db: AsyncSession = D
                 detail="Course code already exists",
             )
 
+    # Verify department exists if updating
     if "department_id" in update_data:
         dept_result = await db.execute(
             select(Department).where(Department.department_id == update_data["department_id"])
@@ -139,7 +145,7 @@ async def update_course(course_id: int, data: CourseUpdate, db: AsyncSession = D
 
 @router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_course(course_id: int, db: AsyncSession = Depends(get_db)):
-
+    """Delete a course (soft delete by setting is_active to False)."""
     result = await db.execute(select(Course).where(Course.course_id == course_id))
     course = result.scalar_one_or_none()
     if not course:
@@ -158,7 +164,7 @@ async def get_course_sections(
     term_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-
+    """Get all sections for a course."""
     from app.models.academic import CourseSection
     from app.schemas.academic import CourseSectionListOut, CourseSectionOut
 

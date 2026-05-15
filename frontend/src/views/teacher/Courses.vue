@@ -17,37 +17,25 @@ const loading = ref(true)
 const sections = ref([])
 const courses = ref([])
 const terms = ref([])
-const deliveryModeOptions = [
-  { value: 'in-person', label: 'In-Person' },
-  { value: 'online', label: 'Online' },
-  { value: 'hybrid', label: 'Hybrid' },
-]
 
 const showModal = ref(false)
 const modalMode = ref('create')
 const editingId = ref(null)
 const formData = ref({
   course_id: '', term_id: '', section_number: '', max_capacity: 30,
-  schedule_pattern: '', delivery_mode: 'in-person', room_id: null
+  schedule_pattern: '', delivery_mode: 'In-Person', room_id: null
 })
+const deliveryModes = ['In-Person', 'Online', 'Hybrid']
 
 // Add Student modal
 const showAddStudentModal = ref(false)
 const addStudentSectionId = ref(null)
 const addStudentSectionName = ref('')
 const studentSearchQuery = ref('')
-const studentSearchType = ref('all') // 'all', 'name', 'username', 'student_number'
 const studentResults = ref([])
 const studentSearchLoading = ref(false)
 const selectedStudentId = ref(null)
 const addStudentLoading = ref(false)
-let studentSearchTimeout = null
-const searchTypeOptions = [
-  { value: 'all', label: 'All Fields' },
-  { value: 'name', label: 'Name' },
-  { value: 'username', label: 'Username' },
-  { value: 'student_number', label: 'Student Number' }
-]
 
 // Class Detail modal
 const showDetailModal = ref(false)
@@ -57,32 +45,19 @@ const detailLoading = ref(false)
 const detailTotal = ref(0)
 
 const searchStudents = async () => {
-  if (studentSearchTimeout) clearTimeout(studentSearchTimeout)
   if (!studentSearchQuery.value || studentSearchQuery.value.length < 2) { studentResults.value = []; return }
-  studentSearchTimeout = setTimeout(async () => {
-    studentSearchLoading.value = true
-    try {
-      let res
-      if (studentSearchType.value === 'all') {
-        res = await getStudents(0, 20, null, null, null, studentSearchQuery.value)
-      } else if (studentSearchType.value === 'name') {
-        res = await getStudents(0, 20, null, null, null, null, studentSearchQuery.value)
-      } else if (studentSearchType.value === 'username') {
-        res = await getStudents(0, 20, null, null, null, null, null, studentSearchQuery.value)
-      } else if (studentSearchType.value === 'student_number') {
-        res = await getStudents(0, 20, null, null, null, null, null, null, studentSearchQuery.value)
-      }
-      studentResults.value = res.data.students || []
-    } catch (err) { console.error('Error searching students:', err) }
-    finally { studentSearchLoading.value = false }
-  }, 300)
+  studentSearchLoading.value = true
+  try {
+    const res = await getStudents(0, 20, null, null, null, studentSearchQuery.value)
+    studentResults.value = res.data.students || []
+  } catch (err) { console.error('Error searching students:', err) }
+  finally { studentSearchLoading.value = false }
 }
 
 const openAddStudent = (section) => {
   addStudentSectionId.value = section.section_id
   addStudentSectionName.value = `${section.course?.course_code} - ${section.section_number}`
   studentSearchQuery.value = ''
-  studentSearchType.value = 'all'
   studentResults.value = []
   selectedStudentId.value = null
   showAddStudentModal.value = true
@@ -124,7 +99,7 @@ const fetchDropdowns = async () => {
 const fetchSections = async () => {
   loading.value = true
   try {
-    const response = await getFacultySections('me')
+    const response = await getFacultySections(authStore.user.user_id)
     sections.value = response.data.sections || []
   } catch (error) { console.error('Error fetching teacher courses:', error) }
   finally { loading.value = false }
@@ -134,22 +109,14 @@ onMounted(() => { fetchSections(); fetchDropdowns() })
 
 const handleCreateClasses = () => {
   modalMode.value = 'create'
-  formData.value = { course_id: '', term_id: terms.value[0]?.term_id || '', section_number: '', max_capacity: 30, schedule_pattern: '', delivery_mode: 'in-person', room_id: null }
+  formData.value = { course_id: '', term_id: terms.value[0]?.term_id || '', section_number: '', max_capacity: 30, schedule_pattern: '', delivery_mode: 'In-Person', room_id: null }
   showModal.value = true
 }
 
 const handleEditClass = (section) => {
   modalMode.value = 'edit'
   editingId.value = section.section_id
-  formData.value = {
-    course_id: section.course_id,
-    term_id: section.term_id,
-    section_number: section.section_number,
-    max_capacity: section.max_capacity,
-    schedule_pattern: section.schedule_pattern,
-    delivery_mode: (section.delivery_mode || 'in-person').toLowerCase(),
-    room_id: section.room_id,
-  }
+  formData.value = { course_id: section.course_id, term_id: section.term_id, section_number: section.section_number, max_capacity: section.max_capacity, schedule_pattern: section.schedule_pattern, delivery_mode: section.delivery_mode, room_id: section.room_id }
   showModal.value = true
 }
 
@@ -359,7 +326,7 @@ const getStudentName = (enr) => {
               <label class="block text-xs font-medium text-ink-secondary mb-1.5">Delivery</label>
               <select v-model="formData.delivery_mode"
                 class="w-full px-3.5 py-2.5 text-sm font-sans border-[1.5px] border-border-medium rounded-xl bg-surface text-ink transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(47,79,79,0.12)]">
-                <option v-for="mode in deliveryModeOptions" :key="mode.value" :value="mode.value">{{ mode.label }}</option>
+                <option v-for="m in deliveryModes" :key="m" :value="m">{{ m }}</option>
               </select>
             </div>
           </div>
@@ -401,12 +368,7 @@ const getStudentName = (enr) => {
           <div>
             <label class="block text-xs font-medium text-ink-secondary mb-1.5">Search Student</label>
             <div class="flex gap-2">
-              <select v-model="studentSearchType"
-                class="px-3 py-2.5 text-sm font-sans border-[1.5px] border-border-medium rounded-xl bg-surface text-ink transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(47,79,79,0.12)]">
-                <option v-for="opt in searchTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-              </select>
-              <input v-model="studentSearchQuery" type="text" placeholder="Type to search..."
-                @input="searchStudents"
+              <input v-model="studentSearchQuery" type="text" placeholder="Type name or student ID..."
                 @keyup.enter="searchStudents"
                 class="flex-1 px-3.5 py-2.5 text-sm font-sans border-[1.5px] border-border-medium rounded-xl bg-surface text-ink transition-all focus:outline-none focus:border-primary focus:shadow-[0_0_0_3px_rgba(47,79,79,0.12)]" />
               <button @click="searchStudents"

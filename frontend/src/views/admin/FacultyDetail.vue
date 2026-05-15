@@ -53,14 +53,6 @@ const facultyName = computed(() => {
 
 <template>
     <div class="space-y-6">
-        <div>
-            <router-link to="/lecturer"
-                class="inline-flex items-center gap-2 rounded-lg border border-border-light bg-surface px-4 py-2 text-sm font-medium text-ink-muted transition-all hover:text-ink hover:shadow-sm">
-                <Icons name="mdi-arrow-left" class="w-4 h-4" />
-                    Back
-            </router-link>
-        </div>
-
         <div v-if="loading" class="text-center py-12 text-ink-muted">
             <Icons name="mdi-loading" class="animate-spin w-8 h-8 mb-2" />
             <p>Loading details...</p>

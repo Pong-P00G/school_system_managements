@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* ─── Tailwind v4 Design Tokens ─── */
 @theme {
   /* Primary */
   --color-primary: #2F4F4F;
@@ -49,28 +50,30 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Base styles */
+/* ─── Base styles ─── */
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-/* Scrollbar */
+/* ─── Scrollbar ─── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-border-medium); border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-ink-muted); }
 
-/* Stagger animation delays */
+/* ─── Stagger animation delays ─── */
 .delay-1 { animation-delay: 0.05s; opacity: 0; }
 .delay-2 { animation-delay: 0.1s;  opacity: 0; }
 .delay-3 { animation-delay: 0.15s; opacity: 0; }
 .delay-4 { animation-delay: 0.2s;  opacity: 0; }
 
-/* Auth page (preserved) */
+/* ─── Auth page (preserved) ─── */
 .auth-page {
   min-height: 100vh;
   padding: 2rem 1rem;
@@ -130,12 +133,12 @@ body {
 }
 
 
-/* 
+/* ═══════════════════════════════════════════════════
    Dashboard Admin — Global Page Styles
    Import in main.js after style.css
-*/
+   ═══════════════════════════════════════════════════ */
 
-/* Page Header */
+/* ─── Page Header ─── */
 .admin-page-header {
   display: flex;
   align-items: center;
@@ -149,7 +152,7 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* Error Alert */
+/* ─── Error Alert ─── */
 .admin-error {
   margin-bottom: 1rem;
   padding: 0.75rem 1rem;
@@ -160,7 +163,7 @@ body {
   font-size: 0.875rem;
 }
 
-/* Loading State */
+/* ─── Loading State ─── */
 .admin-loading {
   padding: 2rem 1.5rem;
   text-align: center;
@@ -171,7 +174,7 @@ body {
   border: 1px solid var(--color-border-light);
 }
 
-/* Table Card Wrapper */
+/* ─── Table Card Wrapper ─── */
 .admin-table-card {
   background: var(--color-surface);
   border-radius: var(--radius-card);
@@ -189,7 +192,7 @@ body {
   background: var(--color-page);
 }
 
-/* Table */
+/* ─── Table ─── */
 .admin-table {
   width: 100%;
   border-collapse: collapse;
@@ -281,6 +284,7 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(0,0,0,0.25);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   padding: 1rem;
 }
@@ -434,7 +438,7 @@ body {
 /* Table card gets horizontal scroll */
 .admin-table-card {
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  /* -webkit-overflow-scrolling: touch; Deprecated - removed for better compatibility */
 }
 
 /* Keep table from shrinking below content */

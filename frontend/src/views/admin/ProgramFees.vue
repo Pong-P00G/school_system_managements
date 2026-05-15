@@ -14,7 +14,6 @@ const editingProgramId = ref(null)
 const form = ref({
     program_code: '',
     program_name: '',
-    degree_level: 'Bachelor',
     program_fee: 0,
     fee_per_year: 0,
     duration_years: 0,
@@ -49,7 +48,6 @@ const openEdit = (program) => {
     form.value = {
         program_code: program.program_code,
         program_name: program.program_name,
-        degree_level: program.degree_level || 'Bachelor',
         program_fee: Number(program.program_fee || 0),
         fee_per_year: Number(program.fee_per_year || 0),
         duration_years: Number(program.duration_years || 0),
@@ -67,7 +65,6 @@ const saveFee = async () => {
     error.value = ''
     try {
         await updateProgram(editingProgramId.value, {
-            degree_level: form.value.degree_level,
             program_fee: Number(form.value.program_fee),
             fee_per_year: Number(form.value.fee_per_year),
             duration_years: Number(form.value.duration_years)
@@ -144,17 +141,6 @@ onMounted(loadPrograms)
                             <span class="font-medium text-slate-900">{{ form.program_name }}</span>
                             <span class="text-xs text-slate-500">{{ form.program_code }}</span>
                         </div>
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="mb-1 block text-sm font-medium">Degree Level</label>
-                        <select v-model="form.degree_level" class="w-full rounded-md border px-3 py-2" required>
-                            <option value="Certificate">Certificate</option>
-                            <option value="Associate">Associate</option>
-                            <option value="Bachelor">Bachelor</option>
-                            <option value="Master">Master</option>
-                            <option value="Doctorate">Doctorate</option>
-                        </select>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4 mb-4">

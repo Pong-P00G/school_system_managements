@@ -256,8 +256,6 @@ class EnrollmentCreate(EnrollmentBase):
 
 
 class EnrollmentUpdate(BaseModel):
-    student_id: UUID | None = None
-    section_id: int | None = None
     enrollment_status: str | None = None
     grade: str | None = None
     grade_points: Decimal | None = None

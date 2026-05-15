@@ -1,10 +1,8 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { createStudent, deleteStudent, getPrograms, getStudents, getUsers, updateStudent } from '../services/api'
 import { getApiError, pick, toDateInput, toNullableInt, toNullableString } from '../components/utils/crud'
 
-const router = useRouter()
 const students = ref([])
 const programs = ref([])
 const users = ref([])
@@ -103,8 +101,6 @@ const userLabelById = (userId) => {
   return `${match.username} (${match.email})`
 }
 
-const viewDetails = (studentId) => { router.push(`/students/${studentId}`) }
-
 onMounted(loadStudents)
 </script>
 
@@ -132,15 +128,11 @@ onMounted(loadStudents)
         </thead>
         <tbody>
           <tr v-for="student in students" :key="student.student_id">
-            <td class="cell-primary cursor-pointer hover:underline" @click="viewDetails(student.student_id)">{{
-              student.student_number }}</td>
-            <td class="cursor-pointer hover:underline" @click="viewDetails(student.student_id)">{{
-              programNameById(student.program_id) }}</td>
+            <td class="cell-primary">{{ student.student_number }}</td>
+            <td>{{ programNameById(student.program_id) }}</td>
             <td>{{ student.academic_standing }}</td>
             <td>{{ student.enrollment_status }}</td>
             <td>
-              <button class="admin-action-btn admin-action-edit font-medium"
-                @click="viewDetails(student.student_id)">Details</button>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(student)">Edit</button>
               <button class="admin-action-btn admin-action-delete"
                 @click="removeStudent(student.student_id)">Delete</button>

@@ -21,7 +21,6 @@ const navigationItems = computed(() => {
     if (userRole.value === 'student') {
         return [
             { name: 'Dashboard', path: '/student/dashboard', icons: 'mdi-view-dashboard' },
-            { name: 'Classes', path: '/student/classes', icons: 'mdi-google-classroom' },
             { name: 'Courses', path: '/student/courses', icons: 'mdi-book-open-variant' },
             { name: 'Assignments', path: '/student/assignments', icons: 'mdi-file-document' },
             { name: 'Grades', path: '/student/grades', icons: 'mdi-chart-line' },

@@ -1,9 +1,11 @@
+"""Pydantic schemas for user-related endpoints."""
+
 from datetime import datetime, date
 from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field
 
 
-
+# --- Auth schemas ---
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -14,6 +16,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+# --- User schemas ---
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: str = Field(..., max_length=255)
@@ -23,16 +26,6 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
     is_active: bool = True
     is_verified: bool = False
-
-
-class UserOut(UserBase):
-    user_id: UUID
-    is_active: bool
-    is_verified: bool
-    created_at: datetime
-    updated_at: datetime
-    created_at: datetime
-    updated_at: datetime
 
 
 class UserUpdate(BaseModel):

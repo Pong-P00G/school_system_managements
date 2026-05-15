@@ -81,7 +81,7 @@ const fetchEnrollments = async () => {
     if (!selectedSectionId.value) return
     loading.value = true
     try {
-        const res = await getSectionEnrollments(selectedSectionId.value)
+        const res = await getSectionEnrollments(selectedSectionId.value, 0, 100)
         enrolledStudents.value = res.data.enrollments || []
     } catch (e) { console.error(e) }
     finally { loading.value = false }

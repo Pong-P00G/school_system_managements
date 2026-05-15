@@ -112,7 +112,7 @@ onMounted(async () => {
     <div v-if="!loading" class="bg-surface border border-border-light rounded-2xl shadow-card animate-fade-in delay-3">
       <div class="flex items-center justify-between px-6 py-4 border-b border-border-light">
         <h3 class="text-base font-semibold text-ink">My Classes</h3>
-        <router-link to="/student/classes"
+        <router-link to="/student/courses"
           class="text-xs font-medium text-coral no-underline hover:text-coral-hover transition-colors">View All
           →</router-link>
       </div>
@@ -170,12 +170,12 @@ onMounted(async () => {
       class="bg-surface border border-border-light rounded-2xl shadow-card p-6 animate-fade-in delay-4">
       <h3 class="text-base font-semibold text-ink mb-4">Quick Actions</h3>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <router-link to="/student/classes"
+        <router-link to="/student/courses"
           class="flex items-center gap-3 p-4 border border-border-light rounded-xl no-underline text-ink text-sm font-medium transition-all duration-200 hover:bg-primary/0.25 hover:border-primary hover:shadow-card">
           <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
             <Icons name="mdi-book-open-variant" />
           </div>
-          <span>My Classes</span>
+          <span>Browse Courses</span>
         </router-link>
         <router-link to="/student/grades"
           class="flex items-center gap-3 p-4 border border-border-light rounded-xl no-underline text-ink text-sm font-medium transition-all duration-200 hover:bg-primary/0.25 hover:border-primary hover:shadow-card">

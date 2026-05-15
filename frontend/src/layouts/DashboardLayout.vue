@@ -62,7 +62,7 @@ const navigateTo = (path) => {
                 collapsed ? 'lg:w-18' : 'lg:w-60'
             ]">
             <!-- Logo area -->
-            <div class="flex items-center gap-2 px-4 py-5 border-b border-border-light"
+            <div class="flex items-center gap-3 px-4 py-5 border-b border-border-light"
                 :class="{ 'lg:justify-center': collapsed } && { 'md:h-20': collapsed && !mobileOpen }">
                 <div @click="toggleSidebar"
                     class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 cursor-pointer"

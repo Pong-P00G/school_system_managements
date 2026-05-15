@@ -12,7 +12,6 @@ import Terms from '../views/Terms.vue'
 import Sections from '../views/Sections.vue'
 import Enrollments from '../views/Enrollments.vue'
 import StudentDashboard from '../views/student/Dashboard.vue'
-import StudentClasses from '../views/student/Classes.vue'
 import StudentCourses from '../views/student/Courses.vue'
 import StudentAssignments from '../views/student/Assignments.vue'
 import StudentGrades from '../views/student/Grades.vue'
@@ -103,12 +102,6 @@ const routes = [
         meta: { title: 'Students' } 
       },
       { 
-        path: 'students/:id', 
-        name: 'StudentDetail', 
-        component: () => import('../views/admin/StudentDetail.vue'), 
-        meta: { title: 'Student Details' } 
-      },
-      { 
         path: 'lecturer', 
         name: 'Lecturer', 
         component: Lecturer, 
@@ -163,12 +156,6 @@ const routes = [
         name: 'StudentDashboard', 
         component: StudentDashboard, 
         meta: { title: 'Student Dashboard' } 
-      },
-      { 
-        path: 'classes', 
-        name: 'StudentClasses', 
-        component: StudentClasses, 
-        meta: { title: 'My Classes' } 
       },
       { 
         path: 'courses', 

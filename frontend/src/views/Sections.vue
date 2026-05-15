@@ -41,7 +41,7 @@ const openEdit = (section) => {
   editingSectionId.value = section.section_id
   form.value = {
     course_id: String(section.course_id || ''), term_id: String(section.term_id || ''),
-    section_number: section.section_number || '', instructor_id: String(section.instructor_id || ''),
+    section_number: section.section_number || '', instructor_id: section.instructor_id || '',
     max_capacity: Number(section.max_capacity || 30), room_id: section.room_id ?? '',
     schedule_pattern: section.schedule_pattern || '',
     start_time: section.start_time || '', end_time: section.end_time || '',
@@ -56,12 +56,7 @@ const openEdit = (section) => {
 const closeModal = () => { showModal.value = false; editingSectionId.value = null }
 
 const buildPayload = () => ({
-  ...pick({
-    ...form.value,
-    section_number: String(form.value.section_number || '').trim(),
-    delivery_mode: String(form.value.delivery_mode || '').trim(),
-    status: String(form.value.status || '').trim(),
-  }, ['section_number', 'delivery_mode', 'status']),
+  ...pick(form.value, ['section_number', 'delivery_mode', 'status']),
   course_id: Number(form.value.course_id), term_id: Number(form.value.term_id),
   max_capacity: Number(form.value.max_capacity),
   instructor_id: toNullableString(form.value.instructor_id),

@@ -19,7 +19,7 @@ onMounted(async () => {
   if (!authStore.user?.user_id) { loading.value = false; return }
   loading.value = true
   try {
-    const response = await getFacultySections('me')
+    const response = await getFacultySections(authStore.user.user_id)
     sections.value = response.data.sections || []
     const querySectionId = route.query.sectionId
     if (querySectionId && sections.value.some(s => s.section_id === Number(querySectionId))) {

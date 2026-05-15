@@ -60,10 +60,6 @@ async def get_my_enrollments(
         .options(
             selectinload(Enrollment.section)
             .selectinload(CourseSection.course),
-            selectinload(Enrollment.section)
-            .selectinload(CourseSection.term),
-            selectinload(Enrollment.section)
-            .selectinload(CourseSection.room),
         )
         .where(Enrollment.student_id == current_user.user_id)
     )
@@ -164,9 +160,6 @@ async def list_students(
     enrollment_status: str | None = Query(None),
     academic_standing: str | None = Query(None),
     search: str | None = Query(None),
-    search_name: str | None = Query(None, description="Search by first or last name"),
-    search_username: str | None = Query(None, description="Search by username"),
-    search_student_number: str | None = Query(None, description="Search by student number"),
     db: AsyncSession = Depends(get_db),
 ):
     """List students with optional filters and pagination."""
@@ -207,30 +200,6 @@ async def list_students(
             UserPersonalInfo.first_name.ilike(search_term) |
             UserPersonalInfo.last_name.ilike(search_term)
         )
-    elif search_name or search_username or search_student_number:
-        from app.models.user import UserPersonalInfo
-        query = query.join(User).outerjoin(UserPersonalInfo, User.user_id == UserPersonalInfo.user_id)
-        count_query = count_query.join(User).outerjoin(UserPersonalInfo, User.user_id == UserPersonalInfo.user_id)
-        
-        conditions = []
-        if search_name:
-            name_term = f"%{search_name}%"
-            conditions.append(
-                UserPersonalInfo.first_name.ilike(name_term) |
-                UserPersonalInfo.last_name.ilike(name_term)
-            )
-        if search_username:
-            conditions.append(User.username.ilike(f"%{search_username}%"))
-        if search_student_number:
-            conditions.append(Student.student_number.ilike(f"%{search_student_number}%"))
-        
-        if conditions:
-            from sqlalchemy import or_
-            final_condition = conditions[0]
-            for condition in conditions[1:]:
-                final_condition = final_condition | condition
-            query = query.where(final_condition)
-            count_query = count_query.where(final_condition)
 
     total_result = await db.execute(count_query)
     total = total_result.scalar()
