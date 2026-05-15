@@ -234,3 +234,17 @@ async def test_pagination(client):
     resp = await client.get("/api/v1/sections/?skip=0&limit=5")
     assert resp.status_code == 200
     assert len(resp.json()["sections"]) <= 5
+
+
+@pytest.mark.asyncio
+async def test_delete_section_with_enrollments_returns_409(client):
+    """Deleting a section that still has enrollments returns 409."""
+    acad = await setup_academic_graph(client, f"se409_{BASE_SUFFIX}")
+    section = await create_section(client, f"se409_{BASE_SUFFIX}", acad["course_id"], acad["term_id"], max_capacity=2)
+    user = await register_user(client, f"se409_{BASE_SUFFIX}")
+    student = await create_student(client, f"se409_{BASE_SUFFIX}", user["user_id"], acad["prog_id"])
+    await create_enrollment(client, student["student_id"], section["section_id"])
+
+    resp = await client.delete(f"/api/v1/sections/{section['section_id']}")
+    assert resp.status_code == 409
+    assert "enrollment(s)" in resp.json()["detail"].lower()

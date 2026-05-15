@@ -18,7 +18,7 @@ onMounted(async () => {
     try {
         const [studentRes, enrollmentsRes, accountRes] = await Promise.allSettled([
             getStudent(studentId),
-            getEnrollments(0, 1000, studentId),
+            getEnrollments(0, 100, studentId),
             getStudentAccount(studentId)
         ])
 

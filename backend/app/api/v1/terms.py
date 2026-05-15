@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.core.database import get_db
-from app.models.academic import AcademicTerm
+from app.models.academic import AcademicTerm, CourseSection
 from app.schemas.academic import (
     AcademicTermOut, AcademicTermListOut, AcademicTermCreate, AcademicTermUpdate
 )
@@ -117,6 +117,15 @@ async def delete_term(term_id: int, db: AsyncSession = Depends(get_db)):
     if not term:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Academic term not found")
 
+    # Check for dependent records
+    section_count = await db.scalar(
+        select(func.count(CourseSection.section_id)).where(CourseSection.term_id == term_id)
+    )
+    if section_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete term: {section_count} course section(s) are scheduled in this term. Remove or reassign them first."
+        )
     await db.delete(term)
     await db.flush()
     return None

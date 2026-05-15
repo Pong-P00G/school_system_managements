@@ -175,3 +175,16 @@ async def test_list_courses_pagination(client):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["courses"]) <= 5
+
+
+@pytest.mark.asyncio
+async def test_delete_course_with_sections_returns_409(client):
+    """Deleting a course that still has sections returns 409."""
+    dept = await create_department(client, f"cs409_{BASE_SUFFIX}")
+    course = await create_course(client, f"cs409_{BASE_SUFFIX}", dept["department_id"])
+    term = await create_term(client, f"cs409_{BASE_SUFFIX}")
+    await create_section(client, f"cs409_{BASE_SUFFIX}", course["course_id"], term["term_id"])
+
+    resp = await client.delete(f"/api/v1/courses/{course['course_id']}")
+    assert resp.status_code == 409
+    assert "section(s)" in resp.json()["detail"].lower()

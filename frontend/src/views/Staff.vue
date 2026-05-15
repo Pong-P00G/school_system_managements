@@ -2,6 +2,12 @@
 import { onMounted, ref } from 'vue'
 import { createStaff, deleteStaff, getDepartments, getStaff, getUsers, updateStaff } from '../services/api'
 import { getApiError, pick, toDateInput, toNullableInt, toNullableString } from '../components/utils/crud'
+import { useToast } from '../composables/useToast'
+import Pagination from '../components/Pagination.vue'
+import SearchFilter from '../components/SearchFilter.vue'
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const staff = ref([])
 const departments = ref([])
@@ -12,6 +18,16 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingStaffId = ref(null)
+const currentPage = ref(1)
+const pageSize = 100
+const searchQuery = ref('')
+
+const showDeleteDialog = ref(false)
+const deletingStaffId = ref(null)
+const deleteStaffName = ref('')
+const deleteDependencies = ref([])
+const checkingDeps = ref(false)
+const deleting = ref(false)
 
 const defaultForm = () => ({
   employee_number: '', user_id: '', department_id: '',
@@ -25,13 +41,25 @@ const form = ref(defaultForm())
 const loadStaff = async () => {
   loading.value = true; error.value = ''
   try {
+    const skip = (currentPage.value - 1) * pageSize
     const [staffRes, departmentsRes, usersRes] = await Promise.all([
-      getStaff(0, 200), getDepartments(0, 200), getUsers(0, 200),
+      getStaff(skip, pageSize, null, null, null, searchQuery.value), getDepartments(0, 200), getUsers(0, 200),
     ])
     staff.value = staffRes.data.staff; total.value = staffRes.data.total
     departments.value = departmentsRes.data.departments; users.value = usersRes.data.users
   } catch (err) { error.value = getApiError(err, 'Failed to load staff') }
   finally { loading.value = false }
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  loadStaff()
+}
+
+const onSearch = (val) => {
+  searchQuery.value = val
+  currentPage.value = 1
+  loadStaff()
 }
 
 const openCreate = () => { editingStaffId.value = null; form.value = defaultForm(); showModal.value = true }
@@ -74,16 +102,37 @@ const saveStaff = async () => {
   try {
     if (editingStaffId.value) { await updateStaff(editingStaffId.value, buildUpdatePayload()) }
     else { await createStaff(buildCreatePayload()) }
-    closeModal(); await loadStaff()
+    closeModal(); currentPage.value = 1; await loadStaff()
   } catch (err) { error.value = getApiError(err, 'Failed to save staff member') }
   finally { saving.value = false }
 }
 
-const removeStaff = async (staffId) => {
-  if (!confirm('Delete this staff profile?')) return
-  error.value = ''
-  try { await deleteStaff(staffId); await loadStaff() }
-  catch (err) { error.value = getApiError(err, 'Failed to delete staff member') }
+const confirmDeleteStaff = async (staffId, name) => {
+  deletingStaffId.value = staffId
+  deleteStaffName.value = name
+  deleteDependencies.value = []
+  checkingDeps.value = true
+  showDeleteDialog.value = true
+
+  setTimeout(() => {
+    checkingDeps.value = false
+  }, 300)
+}
+
+const executeDeleteStaff = async () => {
+  deleting.value = true
+  try {
+    await deleteStaff(deletingStaffId.value)
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadStaff()
+    toast.success('Staff deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete staff member'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
 }
 
 const departmentNameById = (departmentId) => {
@@ -111,6 +160,9 @@ onMounted(loadStaff)
     <div v-if="loading" class="admin-loading">Loading staff...</div>
 
     <div v-else class="admin-table-card">
+      <div class="px-4 pt-3 pb-2 border-b border-border-light">
+        <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search staff..." />
+      </div>
       <div class="admin-record-count">{{ total }} staff member(s)</div>
       <table class="admin-table">
         <thead>
@@ -130,11 +182,12 @@ onMounted(loadStaff)
             <td>{{ member.employment_status }}</td>
             <td>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(member)">Edit</button>
-              <button class="admin-action-btn admin-action-delete" @click="removeStaff(member.staff_id)">Delete</button>
+              <button class="admin-action-btn admin-action-delete" @click="confirmDeleteStaff(member.staff_id, member.employee_number)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 
     <div v-if="showModal" class="admin-modal-overlay">
@@ -199,5 +252,16 @@ onMounted(loadStaff)
         </form>
       </div>
     </div>
+
+    <ConfirmDeleteDialog
+      :show="showDeleteDialog"
+      title="Delete Staff"
+      :item-name="deleteStaffName"
+      :dependencies="deleteDependencies"
+      :loading="checkingDeps"
+      :deleting="deleting"
+      @confirm="executeDeleteStaff"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>

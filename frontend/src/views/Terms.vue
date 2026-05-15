@@ -2,6 +2,12 @@
 import { onMounted, ref } from 'vue'
 import { createTerm, deleteTerm, getTerms, updateTerm } from '../services/api'
 import { getApiError, pick, toDateInput, toNullableString } from '../components/utils/crud'
+import { useToast } from '../composables/useToast'
+import Pagination from '../components/Pagination.vue'
+import SearchFilter from '../components/SearchFilter.vue'
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const terms = ref([])
 const total = ref(0)
@@ -10,6 +16,16 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingTermId = ref(null)
+const currentPage = ref(1)
+const pageSize = 100
+const searchQuery = ref('')
+
+const showDeleteDialog = ref(false)
+const deletingTermId = ref(null)
+const deleteTermName = ref('')
+const deleteDependencies = ref([])
+const checkingDeps = ref(false)
+const deleting = ref(false)
 
 const defaultForm = () => ({
   term_name: '',
@@ -33,7 +49,8 @@ const loadTerms = async () => {
   loading.value = true
   error.value = ''
   try {
-    const response = await getTerms(0, 200)
+    const skip = (currentPage.value - 1) * pageSize
+    const response = await getTerms(skip, pageSize, null, null, null, searchQuery.value)
     terms.value = response.data.terms
     total.value = response.data.total
   } catch (err) {
@@ -41,6 +58,17 @@ const loadTerms = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  loadTerms()
+}
+
+const onSearch = (val) => {
+  searchQuery.value = val
+  currentPage.value = 1
+  loadTerms()
 }
 
 const openCreate = () => { editingTermId.value = null; form.value = defaultForm(); showModal.value = true }
@@ -80,16 +108,45 @@ const saveTerm = async () => {
     const payload = buildPayload()
     if (editingTermId.value) { await updateTerm(editingTermId.value, payload) }
     else { await createTerm(payload) }
-    closeModal(); await loadTerms()
+    closeModal(); currentPage.value = 1; await loadTerms()
   } catch (err) { error.value = getApiError(err, 'Failed to save academic term') }
   finally { saving.value = false }
 }
 
-const removeTerm = async (termId) => {
-  if (!confirm('Delete this academic term?')) return
-  error.value = ''
-  try { await deleteTerm(termId); await loadTerms() }
-  catch (err) { error.value = getApiError(err, 'Failed to delete academic term') }
+const confirmDeleteTerm = async (termId, termName) => {
+  deletingTermId.value = termId
+  deleteTermName.value = termName
+  deleteDependencies.value = []
+  checkingDeps.value = true
+  showDeleteDialog.value = true
+
+  try {
+    const res = await getSections(0, 1, null, termId)
+    const total = res.data?.total || 0
+    if (total > 0) {
+      deleteDependencies.value = [`${total} section(s) are scheduled in this term`]
+    }
+  } catch (err) {
+    console.warn('Failed to check dependencies', err)
+  } finally {
+    checkingDeps.value = false
+  }
+}
+
+const executeDeleteTerm = async () => {
+  deleting.value = true
+  try {
+    await deleteTerm(deletingTermId.value)
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadTerms()
+    toast.success('Term deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete academic term'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
 }
 
 onMounted(loadTerms)
@@ -106,6 +163,9 @@ onMounted(loadTerms)
     <div v-if="loading" class="admin-loading">Loading terms...</div>
 
     <div v-else class="admin-table-card">
+      <div class="px-4 pt-3 pb-2 border-b border-border-light">
+        <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search terms..." />
+      </div>
       <div class="admin-record-count">{{ total }} term(s)</div>
       <table class="admin-table">
         <thead>
@@ -127,11 +187,12 @@ onMounted(loadTerms)
             <td>{{ term.status }}</td>
             <td>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(term)">Edit</button>
-              <button class="admin-action-btn admin-action-delete" @click="removeTerm(term.term_id)">Delete</button>
+              <button class="admin-action-btn admin-action-delete" @click="confirmDeleteTerm(term.term_id, term.term_name)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 
     <div v-if="showModal" class="admin-modal-overlay">
@@ -180,5 +241,16 @@ onMounted(loadTerms)
         </form>
       </div>
     </div>
+
+    <ConfirmDeleteDialog
+      :show="showDeleteDialog"
+      title="Delete Term"
+      :item-name="deleteTermName"
+      :dependencies="deleteDependencies"
+      :loading="checkingDeps"
+      :deleting="deleting"
+      @confirm="executeDeleteTerm"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>

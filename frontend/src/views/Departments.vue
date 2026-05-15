@@ -1,7 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { createDepartment, deleteDepartment, getDepartments, updateDepartment } from '../services/api'
+import { createDepartment, deleteDepartment, getDepartmentCourses, getDepartmentPrograms, getDepartments, updateDepartment } from '../services/api'
 import { getApiError, pick, toDateInput, toNullableInt, toNullableString } from '../components/utils/crud'
+import { useToast } from '../composables/useToast'
+import Pagination from '../components/Pagination.vue'
+import SearchFilter from '../components/SearchFilter.vue'
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const departments = ref([])
 const total = ref(0)
@@ -10,6 +16,16 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingDepartmentId = ref(null)
+const currentPage = ref(1)
+const pageSize = 100
+const searchQuery = ref('')
+
+const showDeleteDialog = ref(false)
+const deletingDeptId = ref(null)
+const deleteDeptName = ref('')
+const deleteDependencies = ref([])
+const checkingDeps = ref(false)
+const deleting = ref(false)
 
 const defaultForm = () => ({
   department_code: '',
@@ -31,7 +47,8 @@ const loadDepartments = async () => {
   loading.value = true
   error.value = ''
   try {
-    const response = await getDepartments(0, 200)
+    const skip = (currentPage.value - 1) * pageSize
+    const response = await getDepartments(skip, pageSize, searchQuery.value)
     departments.value = response.data.departments
     total.value = response.data.total
   } catch (err) {
@@ -39,6 +56,17 @@ const loadDepartments = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  loadDepartments()
+}
+
+const onSearch = (val) => {
+  searchQuery.value = val
+  currentPage.value = 1
+  loadDepartments()
 }
 
 const openCreate = () => {
@@ -93,6 +121,7 @@ const saveDepartment = async () => {
       await createDepartment(payload)
     }
     closeModal()
+    currentPage.value = 1
     await loadDepartments()
   } catch (err) {
     error.value = getApiError(err, 'Failed to save department')
@@ -101,14 +130,48 @@ const saveDepartment = async () => {
   }
 }
 
-const removeDepartment = async (departmentId) => {
-  if (!confirm('Delete this department?')) return
-  error.value = ''
+const confirmDeleteDepartment = async (departmentId, deptName) => {
+  deletingDeptId.value = departmentId
+  deleteDeptName.value = deptName
+  deleteDependencies.value = []
+  checkingDeps.value = true
+  showDeleteDialog.value = true
+
   try {
-    await deleteDepartment(departmentId)
-    await loadDepartments()
+    const [coursesRes, programsRes] = await Promise.all([
+      getDepartmentCourses(departmentId),
+      getDepartmentPrograms(departmentId),
+    ])
+    const deps = []
+    if (coursesRes.data?.total || coursesRes.data?.courses?.length) {
+      const count = coursesRes.data.total ?? coursesRes.data.courses.length
+      deps.push(`${count} course(s) assigned to this department`)
+    }
+    if (programsRes.data?.total || programsRes.data?.programs?.length) {
+      const count = programsRes.data.total ?? programsRes.data.programs.length
+      deps.push(`${count} program(s) belong to this department`)
+    }
+    deleteDependencies.value = deps
   } catch (err) {
-    error.value = getApiError(err, 'Failed to delete department')
+    console.warn('Failed to check dependencies', err)
+  } finally {
+    checkingDeps.value = false
+  }
+}
+
+const executeDeleteDepartment = async () => {
+  deleting.value = true
+  try {
+    await deleteDepartment(deletingDeptId.value)
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadDepartments()
+    toast.success('Department deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete department'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -127,6 +190,9 @@ onMounted(loadDepartments)
     <div v-if="loading" class="admin-loading">Loading departments...</div>
 
     <div v-else class="admin-table-card">
+      <div class="px-4 pt-3 pb-2 border-b border-border-light">
+        <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search departments..." />
+      </div>
       <div class="admin-record-count">{{ total }} department(s)</div>
       <table class="admin-table">
         <thead>
@@ -151,11 +217,12 @@ onMounted(loadDepartments)
             <td>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(dept)">Edit</button>
               <button class="admin-action-btn admin-action-delete"
-                @click="removeDepartment(dept.department_id)">Delete</button>
+                @click="confirmDeleteDepartment(dept.department_id, dept.department_name)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 
     <div v-if="showModal" class="admin-modal-overlay">
@@ -215,5 +282,16 @@ onMounted(loadDepartments)
         </form>
       </div>
     </div>
+
+    <ConfirmDeleteDialog
+      :show="showDeleteDialog"
+      title="Delete Department"
+      :item-name="deleteDeptName"
+      :dependencies="deleteDependencies"
+      :loading="checkingDeps"
+      :deleting="deleting"
+      @confirm="executeDeleteDepartment"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>

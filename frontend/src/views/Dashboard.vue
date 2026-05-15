@@ -78,7 +78,7 @@ onMounted(async () => {
     const [departmentsRes, coursesRes, studentsRes, programsRes, facultyRes, healthRes, dbRes] = await Promise.allSettled([
       getDepartments(),
       getCourses(),
-      getStudents(0, 1000),
+      getStudents(0, 100),
       getPrograms(0, 200),
       getFaculty(0, 1),
       getHealth(),

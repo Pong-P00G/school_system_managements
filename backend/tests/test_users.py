@@ -189,3 +189,24 @@ async def test_pagination(client):
     resp = await client.get("/api/v1/users/?skip=0&limit=5")
     assert resp.status_code == 200
     assert len(resp.json()["users"]) <= 5
+
+
+@pytest.mark.asyncio
+async def test_delete_user_with_created_assignments_returns_409(client):
+    """Deleting a user who created assignments is blocked with 409."""
+    user = await register_user(client, f"ua409_{BASE_SUFFIX}")
+    token = await login_user(client, user["username"])
+    headers = {"Authorization": f"Bearer {token['access_token']}"}
+
+    # Create a minimal assignment record tied to this user
+    # First set up academic graph
+    dept = await create_department(client, f"ua409_{BASE_SUFFIX}_d")
+    course = await create_course(client, f"ua409_{BASE_SUFFIX}_c", dept["department_id"])
+    term = await create_term(client, f"ua409_{BASE_SUFFIX}_t", suffix="ua409_term")
+    section = await create_section(client, f"ua409_{BASE_SUFFIX}_s", course["course_id"], term["term_id"])
+
+    assert section["section_id"] is not None
+
+    resp = await client.delete(f"/api/v1/users/{user['user_id']}")
+    assert resp.status_code == 409
+    assert "dependent" in resp.json()["detail"].lower() or "assigned" in resp.json()["detail"].lower() or "associated" in resp.json()["detail"].lower()

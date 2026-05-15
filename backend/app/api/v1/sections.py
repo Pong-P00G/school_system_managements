@@ -7,6 +7,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.academic import CourseSection, Course, AcademicTerm, Room
+from app.models.people import Enrollment
 from app.models.user import User
 from app.schemas.academic import (
     CourseSectionOut, CourseSectionListOut, CourseSectionCreate, CourseSectionUpdate
@@ -199,6 +200,20 @@ async def delete_section(section_id: int, db: AsyncSession = Depends(get_db)):
     section = result.scalar_one_or_none()
     if not section:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course section not found")
+
+    # Check for dependent records
+    enrollment_count = await db.scalar(
+        select(func.count(Enrollment.enrollment_id)).where(Enrollment.section_id == section_id)
+    )
+    if enrollment_count:
+        detail = (
+            f"Cannot delete section: {enrollment_count} student(s) are enrolled."
+            " Unenroll them first."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=detail,
+        )
 
     await db.delete(section)
     await db.flush()

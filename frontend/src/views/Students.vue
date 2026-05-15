@@ -1,7 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { createStudent, deleteStudent, getPrograms, getStudents, getUsers, updateStudent } from '../services/api'
+import { createStudent, deleteStudent, getPrograms, getStudentAccount, getStudentEnrollments, getStudents, getUsers, updateStudent } from '../services/api'
 import { getApiError, pick, toDateInput, toNullableInt, toNullableString } from '../components/utils/crud'
+import { useToast } from '../composables/useToast'
+import Pagination from '../components/Pagination.vue'
+import SearchFilter from '../components/SearchFilter.vue'
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const students = ref([])
 const programs = ref([])
@@ -12,6 +18,16 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingStudentId = ref(null)
+const currentPage = ref(1)
+const pageSize = 100
+const searchQuery = ref('')
+
+const showDeleteDialog = ref(false)
+const deletingStudentId = ref(null)
+const deleteStudentName = ref('')
+const deleteDependencies = ref([])
+const checkingDeps = ref(false)
+const deleting = ref(false)
 
 const defaultForm = () => ({
   student_number: '', user_id: '', program_id: '',
@@ -25,13 +41,25 @@ const form = ref(defaultForm())
 const loadStudents = async () => {
   loading.value = true; error.value = ''
   try {
+    const skip = (currentPage.value - 1) * pageSize
     const [studentsRes, programsRes, usersRes] = await Promise.all([
-      getStudents(0, 200), getPrograms(0, 200), getUsers(0, 200),
+      getStudents(skip, pageSize, null, null, null, searchQuery.value), getPrograms(0, 200), getUsers(0, 200),
     ])
     students.value = studentsRes.data.students; total.value = studentsRes.data.total
     programs.value = programsRes.data.programs; users.value = usersRes.data.users
   } catch (err) { error.value = getApiError(err, 'Failed to load students') }
   finally { loading.value = false }
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  loadStudents()
+}
+
+const onSearch = (val) => {
+  searchQuery.value = val
+  currentPage.value = 1
+  loadStudents()
 }
 
 const openCreate = () => { editingStudentId.value = null; form.value = defaultForm(); showModal.value = true }
@@ -78,16 +106,53 @@ const saveStudent = async () => {
   try {
     if (editingStudentId.value) { await updateStudent(editingStudentId.value, buildUpdatePayload()) }
     else { await createStudent(buildCreatePayload()) }
-    closeModal(); await loadStudents()
+    closeModal(); currentPage.value = 1; await loadStudents()
   } catch (err) { error.value = getApiError(err, 'Failed to save student') }
   finally { saving.value = false }
 }
 
-const removeStudent = async (studentId) => {
-  if (!confirm('Delete this student profile?')) return
-  error.value = ''
-  try { await deleteStudent(studentId); await loadStudents() }
-  catch (err) { error.value = getApiError(err, 'Failed to delete student') }
+const confirmDeleteStudent = async (studentId, studentNumber) => {
+  deletingStudentId.value = studentId
+  deleteStudentName.value = `Student #${studentNumber}`
+  deleteDependencies.value = []
+  checkingDeps.value = true
+  showDeleteDialog.value = true
+
+  try {
+    const [enrollmentsRes, accountRes] = await Promise.all([
+      getStudentEnrollments(studentId),
+      getStudentAccount(studentId).catch(() => null),
+    ])
+    const deps = []
+    const enrollments = enrollmentsRes.data?.enrollments || []
+    if (enrollments.length > 0) {
+      deps.push(`${enrollments.length} active enrollment(s)`)
+    }
+    if (accountRes?.data?.balance && Number(accountRes.data.balance) > 0) {
+      deps.push(`Outstanding account balance: ${accountRes.data.balance}`)
+    }
+    deleteDependencies.value = deps
+  } catch (err) {
+    console.warn('Failed to check dependencies', err)
+  } finally {
+    checkingDeps.value = false
+  }
+}
+
+const executeDeleteStudent = async () => {
+  deleting.value = true
+  try {
+    await deleteStudent(deletingStudentId.value)
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadStudents()
+    toast.success('Student deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete student'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
 }
 
 const programNameById = (programId) => {
@@ -115,6 +180,9 @@ onMounted(loadStudents)
     <div v-if="loading" class="admin-loading">Loading students...</div>
 
     <div v-else class="admin-table-card">
+      <div class="px-4 pt-3 pb-2 border-b border-border-light">
+        <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search students..." />
+      </div>
       <div class="admin-record-count">{{ total }} student(s)</div>
       <table class="admin-table">
         <thead>
@@ -135,11 +203,12 @@ onMounted(loadStudents)
             <td>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(student)">Edit</button>
               <button class="admin-action-btn admin-action-delete"
-                @click="removeStudent(student.student_id)">Delete</button>
+                @click="confirmDeleteStudent(student.student_id, student.student_number)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 
     <div v-if="showModal" class="admin-modal-overlay">
@@ -199,5 +268,16 @@ onMounted(loadStudents)
         </form>
       </div>
     </div>
+
+    <ConfirmDeleteDialog
+      :show="showDeleteDialog"
+      title="Delete Student"
+      :item-name="deleteStudentName"
+      :dependencies="deleteDependencies"
+      :loading="checkingDeps"
+      :deleting="deleting"
+      @confirm="executeDeleteStudent"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>

@@ -348,3 +348,18 @@ async def test_list_enrollments_filters(client):
     resp = await client.get("/api/v1/enrollments/?enrollment_status=enrolled")
     assert resp.status_code == 200
     assert resp.json()["total"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_delete_enrolled_enrollment_returns_409(client):
+    """Deleting an enrolled enrollment (not withdrawn) returns 409."""
+    p = await _setup_prerequisites(client, f"del409_{BASE_SUFFIX}")
+    resp = await client.post("/api/v1/enrollments/", json={
+        "student_id": str(p["student_id"]),
+        "section_id": p["section_id"],
+    })
+    eid = resp.json()["enrollment_id"]
+
+    resp = await client.delete(f"/api/v1/enrollments/{eid}")
+    assert resp.status_code == 409
+    assert "enrolled" in resp.json()["detail"].lower() or "active" in resp.json()["detail"].lower()

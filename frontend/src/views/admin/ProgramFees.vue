@@ -33,7 +33,7 @@ const loadPrograms = async () => {
     loading.value = true
     error.value = ''
     try {
-        const response = await getPrograms(0, 1000)
+        const response = await getPrograms(0, 100)
         programs.value = response.data.programs
         totalRecords.value = response.data.total
     } catch (err) {

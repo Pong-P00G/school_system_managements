@@ -1,7 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { createCourse, deleteCourse, getCourses, getDepartments, updateCourse } from '../services/api'
+import { createCourse, deleteCourse, getCourseSections, getCourses, getDepartments, updateCourse } from '../services/api'
 import { getApiError, pick, toNullableString } from '../components/utils/crud'
+import { useToast } from '../composables/useToast'
+import Pagination from '../components/Pagination.vue'
+import SearchFilter from '../components/SearchFilter.vue'
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const courses = ref([])
 const departments = ref([])
@@ -11,6 +17,16 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingCourseId = ref(null)
+const currentPage = ref(1)
+const pageSize = 100
+const searchQuery = ref('')
+
+const showDeleteDialog = ref(false)
+const deletingCourseId = ref(null)
+const deleteCourseName = ref('')
+const deleteDependencies = ref([])
+const checkingDeps = ref(false)
+const deleting = ref(false)
 
 const defaultForm = () => ({
   course_code: '',
@@ -32,7 +48,8 @@ const loadCourses = async () => {
   loading.value = true
   error.value = ''
   try {
-    const [coursesRes, departmentsRes] = await Promise.all([getCourses(0, 200), getDepartments(0, 200)])
+    const skip = (currentPage.value - 1) * pageSize
+    const [coursesRes, departmentsRes] = await Promise.all([getCourses(skip, pageSize, null, searchQuery.value), getDepartments(0, 200)])
     courses.value = coursesRes.data.courses
     total.value = coursesRes.data.total
     departments.value = departmentsRes.data.departments
@@ -41,6 +58,17 @@ const loadCourses = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  loadCourses()
+}
+
+const onSearch = (val) => {
+  searchQuery.value = val
+  currentPage.value = 1
+  loadCourses()
 }
 
 const openCreate = () => {
@@ -95,6 +123,7 @@ const saveCourse = async () => {
       await createCourse(payload)
     }
     closeModal()
+    currentPage.value = 1
     await loadCourses()
   } catch (err) {
     error.value = getApiError(err, 'Failed to save course')
@@ -103,14 +132,39 @@ const saveCourse = async () => {
   }
 }
 
-const removeCourse = async (courseId) => {
-  if (!confirm('Delete this course?')) return
-  error.value = ''
+const confirmDeleteCourse = async (courseId, courseName) => {
+  deletingCourseId.value = courseId
+  deleteCourseName.value = courseName
+  deleteDependencies.value = []
+  checkingDeps.value = true
+  showDeleteDialog.value = true
+
   try {
-    await deleteCourse(courseId)
-    await loadCourses()
+    const res = await getCourseSections(courseId)
+    const sections = res.data?.sections || []
+    if (sections.length > 0) {
+      deleteDependencies.value = [`${sections.length} section(s) still reference this course`]
+    }
   } catch (err) {
-    error.value = getApiError(err, 'Failed to delete course')
+    console.warn('Failed to check dependencies', err)
+  } finally {
+    checkingDeps.value = false
+  }
+}
+
+const executeDeleteCourse = async () => {
+  deleting.value = true
+  try {
+    await deleteCourse(deletingCourseId.value)
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadCourses()
+    toast.success('Course deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete course'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -133,6 +187,9 @@ onMounted(loadCourses)
     <div v-if="loading" class="admin-loading">Loading courses...</div>
 
     <div v-else class="admin-table-card">
+      <div class="px-4 pt-3 pb-2 border-b border-border-light">
+        <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search courses..." />
+      </div>
       <div class="admin-record-count">{{ total }} course(s)</div>
       <table class="admin-table">
         <thead>
@@ -159,11 +216,12 @@ onMounted(loadCourses)
             <td>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(course)">Edit</button>
               <button class="admin-action-btn admin-action-delete"
-                @click="removeCourse(course.course_id)">Delete</button>
+                @click="confirmDeleteCourse(course.course_id, course.course_name)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 
     <div v-if="showModal" class="admin-modal-overlay">
@@ -229,5 +287,16 @@ onMounted(loadCourses)
         </form>
       </div>
     </div>
+
+    <ConfirmDeleteDialog
+      :show="showDeleteDialog"
+      title="Delete Course"
+      :item-name="deleteCourseName"
+      :dependencies="deleteDependencies"
+      :loading="checkingDeps"
+      :deleting="deleting"
+      @confirm="executeDeleteCourse"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>

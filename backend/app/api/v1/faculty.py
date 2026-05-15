@@ -262,6 +262,7 @@ async def update_faculty(faculty_id: UUID, data: FacultyUpdate, db: AsyncSession
 
 @router.delete("/{faculty_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_faculty(faculty_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Delete a faculty member."""
     result = await db.execute(select(Faculty).where(Faculty.faculty_id == faculty_id))
     faculty = result.scalar_one_or_none()
     if not faculty:

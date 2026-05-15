@@ -1,7 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { createSection, deleteSection, getCourses, getSections, getTerms, getUsers, updateSection } from '../services/api'
+import { createSection, deleteSection, getCourses, getSectionEnrollments, getSections, getTerms, getUsers, updateSection } from '../services/api'
 import { getApiError, pick, toDateInput, toNullableInt, toNullableString } from '../components/utils/crud'
+import { useToast } from '../composables/useToast'
+import Pagination from '../components/Pagination.vue'
+import SearchFilter from '../components/SearchFilter.vue'
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const sections = ref([])
 const courses = ref([])
@@ -13,6 +19,16 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingSectionId = ref(null)
+const currentPage = ref(1)
+const pageSize = 100
+const searchQuery = ref('')
+
+const showDeleteDialog = ref(false)
+const deletingSectionId = ref(null)
+const deleteSectionName = ref('')
+const deleteDependencies = ref([])
+const checkingDeps = ref(false)
+const deleting = ref(false)
 
 const defaultForm = () => ({
   course_id: '', term_id: '', section_number: '', instructor_id: '',
@@ -26,13 +42,25 @@ const form = ref(defaultForm())
 const loadSections = async () => {
   loading.value = true; error.value = ''
   try {
+    const skip = (currentPage.value - 1) * pageSize
     const [sectionsRes, coursesRes, termsRes, usersRes] = await Promise.all([
-      getSections(0, 200), getCourses(0, 200), getTerms(0, 200), getUsers(0, 200),
+      getSections(skip, pageSize, null, null, null, null, null, searchQuery.value), getCourses(0, 200), getTerms(0, 200), getUsers(0, 200),
     ])
     sections.value = sectionsRes.data.sections; total.value = sectionsRes.data.total
     courses.value = coursesRes.data.courses; terms.value = termsRes.data.terms; users.value = usersRes.data.users
   } catch (err) { error.value = getApiError(err, 'Failed to load sections') }
   finally { loading.value = false }
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  loadSections()
+}
+
+const onSearch = (val) => {
+  searchQuery.value = val
+  currentPage.value = 1
+  loadSections()
 }
 
 const openCreate = () => { editingSectionId.value = null; form.value = defaultForm(); showModal.value = true }
@@ -73,16 +101,45 @@ const saveSection = async () => {
     const payload = buildPayload()
     if (editingSectionId.value) { await updateSection(editingSectionId.value, payload) }
     else { await createSection(payload) }
-    closeModal(); await loadSections()
+    closeModal(); currentPage.value = 1; await loadSections()
   } catch (err) { error.value = getApiError(err, 'Failed to save section') }
   finally { saving.value = false }
 }
 
-const removeSection = async (sectionId) => {
-  if (!confirm('Delete this section?')) return
-  error.value = ''
-  try { await deleteSection(sectionId); await loadSections() }
-  catch (err) { error.value = getApiError(err, 'Failed to delete section') }
+const confirmDeleteSection = async (sectionId, sectionNumber) => {
+  deletingSectionId.value = sectionId
+  deleteSectionName.value = `Section ${sectionNumber}`
+  deleteDependencies.value = []
+  checkingDeps.value = true
+  showDeleteDialog.value = true
+
+  try {
+    const res = await getSectionEnrollments(sectionId)
+    const enrollments = res.data?.enrollments || []
+    if (enrollments.length > 0) {
+      deleteDependencies.value = [`${enrollments.length} student(s) enrolled in this section`]
+    }
+  } catch (err) {
+    console.warn('Failed to check dependencies', err)
+  } finally {
+    checkingDeps.value = false
+  }
+}
+
+const executeDeleteSection = async () => {
+  deleting.value = true
+  try {
+    await deleteSection(deletingSectionId.value)
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadSections()
+    toast.success('Section deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete section'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
 }
 
 const courseCodeById = (courseId) => {
@@ -113,6 +170,9 @@ onMounted(loadSections)
     <div v-if="loading" class="admin-loading">Loading sections...</div>
 
     <div v-else class="admin-table-card">
+      <div class="px-4 pt-3 pb-2 border-b border-border-light">
+        <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search sections..." />
+      </div>
       <div class="admin-record-count">{{ total }} section(s)</div>
       <table class="admin-table">
         <thead>
@@ -135,11 +195,12 @@ onMounted(loadSections)
             <td>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(section)">Edit</button>
               <button class="admin-action-btn admin-action-delete"
-                @click="removeSection(section.section_id)">Delete</button>
+                @click="confirmDeleteSection(section.section_id, section.section_number)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 
     <div v-if="showModal" class="admin-modal-overlay">
@@ -208,5 +269,16 @@ onMounted(loadSections)
         </form>
       </div>
     </div>
+
+    <ConfirmDeleteDialog
+      :show="showDeleteDialog"
+      title="Delete Section"
+      :item-name="deleteSectionName"
+      :dependencies="deleteDependencies"
+      :loading="checkingDeps"
+      :deleting="deleting"
+      @confirm="executeDeleteSection"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>

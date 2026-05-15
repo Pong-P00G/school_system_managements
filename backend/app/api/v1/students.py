@@ -1,12 +1,10 @@
-"""Student management endpoints with full CRUD operations."""
-
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
-from app.models.people import Student, Enrollment, Assignment, AssignmentSubmission
+from app.models.people import Student, Enrollment, Assignment, AssignmentSubmission, StudentAccount
 from app.models.user import User
 from app.models.academic import Program, CourseSection, Course
 from app.schemas.people import (
@@ -15,11 +13,6 @@ from app.schemas.people import (
 from app.api.deps import get_current_user
 
 router = APIRouter()
-
-
-# ──────────────────────────────────────────────
-# /me  endpoints  (MUST come BEFORE /{student_id})
-# ──────────────────────────────────────────────
 
 @router.get("/me")
 async def get_my_student_profile(
@@ -73,9 +66,7 @@ async def get_my_assignments(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all assignments for courses the authenticated student is enrolled in,
-    including course info and instructor details."""
-    # Get enrolled section IDs
+
     enr_result = await db.execute(
         select(Enrollment.section_id)
         .where(Enrollment.student_id == current_user.user_id)
@@ -155,7 +146,7 @@ async def get_my_assignments(
 @router.get("/", response_model=StudentListOut)
 async def list_students(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     program_id: int | None = Query(None),
     enrollment_status: str | None = Query(None),
     academic_standing: str | None = Query(None),
@@ -320,10 +311,26 @@ async def update_student(student_id: UUID, data: StudentUpdate, db: AsyncSession
 @router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_student(student_id: UUID, db: AsyncSession = Depends(get_db)):
     """Delete a student profile."""
-    result = await db.execute(select(Student).where(Student.student_id == student_id))
+    result = await db.execute(
+        select(Student)
+        .options(selectinload(Student.enrollments), selectinload(Student.account))
+        .where(Student.student_id == student_id)
+    )
     student = result.scalar_one_or_none()
     if not student:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+
+    # Check for dependent records
+    if student.enrollments:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete student: {len(student.enrollments)} enrollment(s) exist. Remove them first."
+        )
+    if student.account and student.account.balance and float(student.account.balance) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete student: account has an outstanding balance of ${float(student.account.balance):.2f}. Settle the account first."
+        )
 
     await db.delete(student)
     await db.flush()
@@ -334,7 +341,7 @@ async def delete_student(student_id: UUID, db: AsyncSession = Depends(get_db)):
 async def get_student_enrollments(
     student_id: UUID,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all enrollments for a student."""

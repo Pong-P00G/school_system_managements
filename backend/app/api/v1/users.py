@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.models.user import User, UserPersonalInfo, UserRoleAssignment, UserRole
+from app.models.people import Attendance, FinancialTransaction, Assignment
 from app.api.deps import get_current_user
 from app.schemas.user import (
     UserOut, UserListOut, UserCreate, UserUpdate, UserPersonalInfoOut, UserRoleOut, UserWithRolesOut
@@ -146,13 +147,39 @@ async def update_user(user_id: UUID, data: UserUpdate, db: AsyncSession = Depend
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(user_id: UUID, db: AsyncSession = Depends(get_db)):
-    """Delete a user (soft delete by setting is_active to False)."""
+    """Delete a user (hard delete)."""
     result = await db.execute(select(User).where(User.user_id == user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    user.is_active = False
+    # Check for dependent records (RESTRICT FK constraints that would block deletion)
+    assignment_count = await db.scalar(
+        select(func.count(Assignment.assignment_id)).where(Assignment.created_by == user_id)
+    )
+    if assignment_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete user: {assignment_count} assignment(s) were created by this user. Reassign them first."
+        )
+    attendance_count = await db.scalar(
+        select(func.count(Attendance.attendance_id)).where(Attendance.recorded_by == user_id)
+    )
+    if attendance_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete user: {attendance_count} attendance record(s) were recorded by this user. Reassign them first."
+        )
+    transaction_count = await db.scalar(
+        select(func.count(FinancialTransaction.transaction_id)).where(FinancialTransaction.processed_by == user_id)
+    )
+    if transaction_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete user: {transaction_count} financial transaction(s) were processed by this user. Reassign them first."
+        )
+
+    await db.delete(user)
     await db.flush()
     return None
 

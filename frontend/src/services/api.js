@@ -1,6 +1,3 @@
-/**
- * API client for communicating with the FastAPI backend.
- */
 import axios from 'axios'
 
 const api = axios.create({
@@ -43,7 +40,7 @@ export const register = (username, email, password) =>
   api.post('/auth/register', { username, email, password })
 
 // --- Users ---
-export const getUsers = (skip = 0, limit = 20, search = null, isActive = null) =>
+export const getUsers = (skip = 0, limit = 100, search = null, isActive = null) =>
   api.get('/users/', { params: { skip, limit, search, is_active: isActive } })
 export const getUser = (userId) => api.get(`/users/${userId}`)
 export const createUser = (data) => api.post('/users/', data)
@@ -54,7 +51,7 @@ export const removeRole = (userId, roleId) => api.delete(`/users/${userId}/roles
 export const getRoles = () => api.get('/users/roles')
 
 // --- Departments ---
-export const getDepartments = (skip = 0, limit = 20, search = null, isActive = null) =>
+export const getDepartments = (skip = 0, limit = 100, search = null, isActive = null) =>
   api.get('/departments/', { params: { skip, limit, search, is_active: isActive } })
 export const getDepartment = (id) => api.get(`/departments/${id}`)
 export const createDepartment = (data) => api.post('/departments/', data)
@@ -64,7 +61,7 @@ export const getDepartmentCourses = (id) => api.get(`/departments/${id}/courses`
 export const getDepartmentPrograms = (id) => api.get(`/departments/${id}/programs`)
 
 // --- Courses ---
-export const getCourses = (skip = 0, limit = 20, departmentId = null, search = null, isActive = null, courseLevel = null) =>
+export const getCourses = (skip = 0, limit = 100, departmentId = null, search = null, isActive = null, courseLevel = null) =>
   api.get('/courses/', { params: { skip, limit, department_id: departmentId, search, is_active: isActive, course_level: courseLevel } })
 export const getCourse = (id) => api.get(`/courses/${id}`)
 export const createCourse = (data) => api.post('/courses/', data)
@@ -73,7 +70,7 @@ export const deleteCourse = (id) => api.delete(`/courses/${id}`)
 export const getCourseSections = (id, termId = null) => api.get(`/courses/${id}/sections`, { params: { term_id: termId } })
 
 // --- Programs ---
-export const getPrograms = (skip = 0, limit = 20, departmentId = null, degreeLevel = null, search = null, isActive = null) =>
+export const getPrograms = (skip = 0, limit = 100, departmentId = null, degreeLevel = null, search = null, isActive = null) =>
   api.get('/programs/', { params: { skip, limit, department_id: departmentId, degree_level: degreeLevel, search, is_active: isActive } })
 export const getProgram = (id) => api.get(`/programs/${id}`)
 export const createProgram = (data) => api.post('/programs/', data)
@@ -82,7 +79,7 @@ export const deleteProgram = (id) => api.delete(`/programs/${id}`)
 export const getProgramStudents = (id) => api.get(`/programs/${id}/students`)
 
 // --- Students ---
-export const getStudents = (skip = 0, limit = 20, programId = null, enrollmentStatus = null, academicStanding = null, search = null) =>
+export const getStudents = (skip = 0, limit = 100, programId = null, enrollmentStatus = null, academicStanding = null, search = null) =>
   api.get('/students/', { params: { skip, limit, program_id: programId, enrollment_status: enrollmentStatus, academic_standing: academicStanding, search } })
 export const getStudent = (id) => api.get(`/students/${id}`)
 export const createStudent = (data) => api.post('/students/', data)
@@ -95,7 +92,7 @@ export const getMyEnrollments = () => api.get('/students/me/enrollments')
 export const getMyAssignments = () => api.get('/students/me/assignments')
 
 // --- Faculty ---
-export const getFaculty = (skip = 0, limit = 20, departmentId = null, employmentStatus = null, facultyRank = null, search = null) =>
+export const getFaculty = (skip = 0, limit = 100, departmentId = null, employmentStatus = null, facultyRank = null, search = null) =>
   api.get('/faculty/', { params: { skip, limit, department_id: departmentId, employment_status: employmentStatus, faculty_rank: facultyRank, search } })
 export const getFacultyById = (id) => api.get(`/faculty/${id}`)
 export const createFaculty = (data) => api.post('/faculty/', data)
@@ -106,7 +103,7 @@ export const getFacultySections = (id = 'me', termId = null) => api.get(id === '
 export const getFacultyAssignments = (id) => api.get(`/faculty/${id}/assignments`)
 
 // --- Staff ---
-export const getStaff = (skip = 0, limit = 20, departmentId = null, employmentStatus = null, jobCategory = null, search = null) =>
+export const getStaff = (skip = 0, limit = 100, departmentId = null, employmentStatus = null, jobCategory = null, search = null) =>
   api.get('/staff/', { params: { skip, limit, department_id: departmentId, employment_status: employmentStatus, job_category: jobCategory, search } })
 export const getStaffMember = (id) => api.get(`/staff/${id}`)
 export const createStaff = (data) => api.post('/staff/', data)
@@ -114,8 +111,8 @@ export const updateStaff = (id, data) => api.put(`/staff/${id}`, data)
 export const deleteStaff = (id) => api.delete(`/staff/${id}`)
 
 // --- Enrollments ---
-export const getEnrollments = (skip = 0, limit = 20, studentId = null, sectionId = null, enrollmentStatus = null) =>
-  api.get('/enrollments/', { params: { skip, limit, student_id: studentId, section_id: sectionId, enrollment_status: enrollmentStatus } })
+export const getEnrollments = (skip = 0, limit = 100, studentId = null, sectionId = null, enrollmentStatus = null, search = null) =>
+  api.get('/enrollments/', { params: { skip, limit, student_id: studentId, section_id: sectionId, enrollment_status: enrollmentStatus, search } })
 export const getEnrollment = (id) => api.get(`/enrollments/${id}`)
 export const createEnrollment = (data) => api.post('/enrollments/', data)
 export const updateEnrollment = (id, data) => api.put(`/enrollments/${id}`, data)
@@ -125,8 +122,8 @@ export const submitGrade = (id, grade, gradePoints = null, gradedBy = null) =>
   api.post(`/enrollments/${id}/grade`, { grade, grade_points: gradePoints, graded_by: gradedBy })
 
 // --- Academic Terms ---
-export const getTerms = (skip = 0, limit = 20, academicYear = null, termType = null, status = null) =>
-  api.get('/terms/', { params: { skip, limit, academic_year: academicYear, term_type: termType, status } })
+export const getTerms = (skip = 0, limit = 100, academicYear = null, termType = null, status = null, search = null) =>
+  api.get('/terms/', { params: { skip, limit, academic_year: academicYear, term_type: termType, status, search } })
 export const getTerm = (id) => api.get(`/terms/${id}`)
 export const createTerm = (data) => api.post('/terms/', data)
 export const updateTerm = (id, data) => api.put(`/terms/${id}`, data)
@@ -135,8 +132,8 @@ export const getCurrentTerm = () => api.get('/terms/current/active')
 export const getUpcomingTerms = (skip = 0, limit = 5) => api.get('/terms/current/upcoming', { params: { skip, limit } })
 
 // --- Course Sections ---
-export const getSections = (skip = 0, limit = 20, course_id = null, term_id = null, instructor_id = null, status = null, delivery_mode = null) =>
-  api.get('/sections/', { params: { skip, limit, course_id, term_id, instructor_id, status, delivery_mode } })
+export const getSections = (skip = 0, limit = 100, course_id = null, term_id = null, instructor_id = null, status = null, delivery_mode = null, search = null) =>
+  api.get('/sections/', { params: { skip, limit, course_id, term_id, instructor_id, status, delivery_mode, search } })
 export const getSection = (id) => api.get(`/sections/${id}`)
 export const createSection = (data) => api.post('/sections/', data)
 export const updateSection = (id, data) => api.put(`/sections/${id}`, data)
@@ -146,7 +143,7 @@ export const getSectionEnrollments = (id, search = null, skip = 0, limit = 100) 
 export const getSectionAssignments = (id) => api.get(`/sections/${id}/assignments`)
 
 // --- Assignments & Submissions ---
-export const getAssignments = (skip = 0, limit = 20, sectionId = null) => 
+export const getAssignments = (skip = 0, limit = 100, sectionId = null) => 
   api.get('/assignments/', { params: { skip, limit, section_id: sectionId } })
 export const getAssignment = (id) => api.get(`/assignments/${id}`)
 export const createAssignment = (data) => api.post('/assignments/', data)

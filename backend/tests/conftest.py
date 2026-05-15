@@ -22,6 +22,7 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from app.main import app
+from app.core.database import engine
 
 from .helpers import (
     create_department,
@@ -29,6 +30,23 @@ from .helpers import (
     register_user,
     setup_academic_graph,
 )
+
+
+# ---------------------------------------------------------------------------
+# Session-scoped event loop — prevents "Event loop is closed" errors
+# when asyncpg connections try to clean up after the test loop is destroyed.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create a single event loop for the entire test session."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    # Clean up: dispose the DB engine within the active loop before closing it
+    loop.run_until_complete(engine.dispose())
+    loop.close()
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +180,7 @@ async def staff_headers(staff_user: dict) -> dict[str, str]:
 
 @pytest_asyncio.fixture
 async def academic_graph(client, suffix: str) -> dict:
-    """Full academic dependency graph (dept → program → course → term → section)."""
+    """Full academic dependency graph (dept -> program -> course -> term -> section)."""
     return await setup_academic_graph(client, suffix)
 
 

@@ -2,6 +2,12 @@
 import { onMounted, ref } from 'vue'
 import { createEnrollment, deleteEnrollment, getEnrollments, getSections, getStudents, updateEnrollment } from '../services/api'
 import { getApiError, pick, toNullableString } from '../components/utils/crud'
+import { useToast } from '../composables/useToast'
+import Pagination from '../components/Pagination.vue'
+import SearchFilter from '../components/SearchFilter.vue'
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const enrollments = ref([])
 const students = ref([])
@@ -12,6 +18,16 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingEnrollmentId = ref(null)
+const currentPage = ref(1)
+const pageSize = 100
+const searchQuery = ref('')
+
+const showDeleteDialog = ref(false)
+const deletingEnrollmentId = ref(null)
+const deleteEnrollmentName = ref('')
+const deleteDependencies = ref([])
+const checkingDeps = ref(false)
+const deleting = ref(false)
 
 const defaultForm = () => ({
   student_id: '', section_id: '', enrollment_status: 'enrolled',
@@ -24,8 +40,9 @@ const form = ref(defaultForm())
 const loadEnrollments = async () => {
   loading.value = true; error.value = ''
   try {
+    const skip = (currentPage.value - 1) * pageSize
     const [enrollmentsRes, studentsRes, sectionsRes] = await Promise.all([
-      getEnrollments(0, 200), getStudents(0, 200), getSections(0, 200),
+      getEnrollments(skip, pageSize, null, null, null, searchQuery.value), getStudents(0, 200), getSections(0, 200),
     ])
     enrollments.value = enrollmentsRes.data.enrollments
     total.value = enrollmentsRes.data.total
@@ -33,6 +50,17 @@ const loadEnrollments = async () => {
     sections.value = sectionsRes.data.sections
   } catch (err) { error.value = getApiError(err, 'Failed to load enrollments') }
   finally { loading.value = false }
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  loadEnrollments()
+}
+
+const onSearch = (val) => {
+  searchQuery.value = val
+  currentPage.value = 1
+  loadEnrollments()
 }
 
 const openCreate = () => { editingEnrollmentId.value = null; form.value = defaultForm(); showModal.value = true }
@@ -75,16 +103,37 @@ const saveEnrollment = async () => {
   try {
     if (editingEnrollmentId.value) { await updateEnrollment(editingEnrollmentId.value, buildUpdatePayload()) }
     else { await createEnrollment(buildCreatePayload()) }
-    closeModal(); await loadEnrollments()
+    closeModal(); currentPage.value = 1; await loadEnrollments()
   } catch (err) { error.value = getApiError(err, 'Failed to save enrollment') }
   finally { saving.value = false }
 }
 
-const removeEnrollment = async (enrollmentId) => {
-  if (!confirm('Delete this enrollment?')) return
-  error.value = ''
-  try { await deleteEnrollment(enrollmentId); await loadEnrollments() }
-  catch (err) { error.value = getApiError(err, 'Failed to delete enrollment') }
+const confirmDeleteEnrollment = async (enrollmentId, label) => {
+  deletingEnrollmentId.value = enrollmentId
+  deleteEnrollmentName.value = label
+  deleteDependencies.value = []
+  checkingDeps.value = true
+  showDeleteDialog.value = true
+
+  setTimeout(() => {
+    checkingDeps.value = false
+  }, 200)
+}
+
+const executeDeleteEnrollment = async () => {
+  deleting.value = true
+  try {
+    await deleteEnrollment(deletingEnrollmentId.value)
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadEnrollments()
+    toast.success('Enrollment deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete enrollment'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
 }
 
 const studentLabelById = (studentId) => {
@@ -111,6 +160,9 @@ onMounted(loadEnrollments)
     <div v-if="loading" class="admin-loading">Loading enrollments...</div>
 
     <div v-else class="admin-table-card">
+      <div class="px-4 pt-3 pb-2 border-b border-border-light">
+        <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search enrollments..." />
+      </div>
       <div class="admin-record-count">{{ total }} enrollment(s)</div>
       <table class="admin-table">
         <thead>
@@ -133,11 +185,12 @@ onMounted(loadEnrollments)
             <td>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(enrollment)">Edit</button>
               <button class="admin-action-btn admin-action-delete"
-                @click="removeEnrollment(enrollment.enrollment_id)">Delete</button>
+                @click="confirmDeleteEnrollment(enrollment.enrollment_id, 'Enrollment #' + enrollment.enrollment_id)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 
     <div v-if="showModal" class="admin-modal-overlay">
@@ -213,5 +266,16 @@ onMounted(loadEnrollments)
         </form>
       </div>
     </div>
+
+    <ConfirmDeleteDialog
+      :show="showDeleteDialog"
+      title="Delete Enrollment"
+      :item-name="deleteEnrollmentName"
+      :dependencies="deleteDependencies"
+      :loading="checkingDeps"
+      :deleting="deleting"
+      @confirm="executeDeleteEnrollment"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>

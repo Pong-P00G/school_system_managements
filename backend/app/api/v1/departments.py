@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
-from app.models.academic import Department
+from app.models.academic import Department, Course, Program
+from app.models.people import Faculty
 from app.schemas.academic import (
     DepartmentOut, DepartmentListOut, DepartmentCreate, DepartmentUpdate
 )
@@ -103,14 +104,18 @@ async def update_department(
     
     # Check for conflicts if updating code or name
     if "department_code" in update_data or "department_name" in update_data:
+        conditions = []
+        if "department_code" in update_data:
+            conditions.append(Department.department_code == update_data["department_code"])
+        if "department_name" in update_data:
+            conditions.append(Department.department_name == update_data["department_name"])
+        conflict_filter = conditions[0]
+        for c in conditions[1:]:
+            conflict_filter = conflict_filter | c
         existing = await db.execute(
             select(Department).where(
                 Department.department_id != department_id,
-                (
-                    Department.department_code == update_data.get("department_code", "") if "department_code" in update_data else False
-                ) | (
-                    Department.department_name == update_data.get("department_name", "") if "department_name" in update_data else False
-                )
+                conflict_filter,
             )
         )
         if existing.scalar_one_or_none():
@@ -129,13 +134,35 @@ async def update_department(
 
 @router.delete("/{department_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_department(department_id: int, db: AsyncSession = Depends(get_db)):
-    """Delete a department (soft delete by setting is_active to False)."""
+    """Delete a department (soft delete by setting is_active=False)."""
     result = await db.execute(
-        select(Department).where(Department.department_id == department_id)
+        select(Department)
+        .options(selectinload(Department.courses), selectinload(Department.programs))
+        .where(Department.department_id == department_id)
     )
     dept = result.scalar_one_or_none()
     if not dept:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
+
+    # Check for dependent records
+    if dept.courses:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete department: {len(dept.courses)} course(s) are still associated with this department. Reassign or remove them first."
+        )
+    if dept.programs:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete department: {len(dept.programs)} program(s) are still associated with this department. Reassign or remove them first."
+        )
+    faculty_count = await db.scalar(
+        select(func.count(Faculty.faculty_id)).where(Faculty.department_id == department_id)
+    )
+    if faculty_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete department: {faculty_count} faculty member(s) are assigned to this department. Reassign them first."
+        )
 
     dept.is_active = False
     await db.flush()

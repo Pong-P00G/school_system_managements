@@ -1,7 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { createFaculty, deleteFaculty, getDepartments, getFaculty, getUsers, updateFaculty } from '../services/api'
+import { createFaculty, deleteFaculty, getDepartments, getFaculty, getFacultySections, getUsers, updateFaculty } from '../services/api'
 import { getApiError, pick, toDateInput, toNullableInt, toNullableString } from '../components/utils/crud'
+import { useToast } from '../composables/useToast'
+import Pagination from '../components/Pagination.vue'
+import SearchFilter from '../components/SearchFilter.vue'
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const faculty = ref([])
 const departments = ref([])
@@ -12,6 +18,16 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingFacultyId = ref(null)
+const currentPage = ref(1)
+const pageSize = 100
+const searchQuery = ref('')
+
+const showDeleteDialog = ref(false)
+const deletingFacultyId = ref(null)
+const deleteFacultyName = ref('')
+const deleteDependencies = ref([])
+const checkingDeps = ref(false)
+const deleting = ref(false)
 
 const defaultForm = () => ({
   employee_number: '', user_id: '', department_id: '',
@@ -26,13 +42,25 @@ const form = ref(defaultForm())
 const loadFaculty = async () => {
   loading.value = true; error.value = ''
   try {
+    const skip = (currentPage.value - 1) * pageSize
     const [facultyRes, departmentsRes, usersRes] = await Promise.all([
-      getFaculty(0, 200), getDepartments(0, 200), getUsers(0, 200),
+      getFaculty(skip, pageSize, null, null, null, searchQuery.value), getDepartments(0, 200), getUsers(0, 200),
     ])
     faculty.value = facultyRes.data.faculty; total.value = facultyRes.data.total
     departments.value = departmentsRes.data.departments; users.value = usersRes.data.users
   } catch (err) { error.value = getApiError(err, 'Failed to load faculty') }
   finally { loading.value = false }
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  loadFaculty()
+}
+
+const onSearch = (val) => {
+  searchQuery.value = val
+  currentPage.value = 1
+  loadFaculty()
 }
 
 const openCreate = () => { editingFacultyId.value = null; form.value = defaultForm(); showModal.value = true }
@@ -79,16 +107,45 @@ const saveFaculty = async () => {
   try {
     if (editingFacultyId.value) { await updateFaculty(editingFacultyId.value, buildUpdatePayload()) }
     else { await createFaculty(buildCreatePayload()) }
-    closeModal(); await loadFaculty()
+    closeModal(); currentPage.value = 1; await loadFaculty()
   } catch (err) { error.value = getApiError(err, 'Failed to save faculty') }
   finally { saving.value = false }
 }
 
-const removeFaculty = async (facultyId) => {
-  if (!confirm('Delete this faculty profile?')) return
-  error.value = ''
-  try { await deleteFaculty(facultyId); await loadFaculty() }
-  catch (err) { error.value = getApiError(err, 'Failed to delete faculty') }
+const confirmDeleteFaculty = async (facultyId, name) => {
+  deletingFacultyId.value = facultyId
+  deleteFacultyName.value = name
+  deleteDependencies.value = []
+  checkingDeps.value = true
+  showDeleteDialog.value = true
+
+  try {
+    const res = await getFacultySections(facultyId)
+    const sections = res.data?.sections || []
+    if (sections.length > 0) {
+      deleteDependencies.value = [`${sections.length} section(s) assigned to this faculty member`]
+    }
+  } catch (err) {
+    console.warn('Failed to check dependencies', err)
+  } finally {
+    checkingDeps.value = false
+  }
+}
+
+const executeDeleteFaculty = async () => {
+  deleting.value = true
+  try {
+    await deleteFaculty(deletingFacultyId.value)
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadFaculty()
+    toast.success('Faculty deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete faculty'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
 }
 
 const departmentNameById = (departmentId) => {
@@ -120,6 +177,9 @@ onMounted(loadFaculty)
     <div v-if="loading" class="admin-loading">Loading faculty...</div>
 
     <div v-else class="admin-table-card">
+      <div class="px-4 pt-3 pb-2 border-b border-border-light">
+        <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search faculty..." />
+      </div>
       <div class="admin-record-count">{{ total }} faculty member(s)</div>
       <table class="admin-table">
         <thead>
@@ -146,11 +206,12 @@ onMounted(loadFaculty)
                 @click="viewDetails(member.faculty_id)">Details</button>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(member)">Edit</button>
               <button class="admin-action-btn admin-action-delete"
-                @click="removeFaculty(member.faculty_id)">Delete</button>
+                @click="confirmDeleteFaculty(member.faculty_id, member.user?.username || 'this faculty member')">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 
     <div v-if="showModal" class="admin-modal-overlay">
@@ -225,5 +286,16 @@ onMounted(loadFaculty)
         </form>
       </div>
     </div>
+
+    <ConfirmDeleteDialog
+      :show="showDeleteDialog"
+      title="Delete Faculty"
+      :item-name="deleteFacultyName"
+      :dependencies="deleteDependencies"
+      :loading="checkingDeps"
+      :deleting="deleting"
+      @confirm="executeDeleteFaculty"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>

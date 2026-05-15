@@ -2,6 +2,12 @@
 import { onMounted, ref } from 'vue'
 import { createUser, deleteUser, getUsers, updateUser, getRoles, assignRole, removeRole } from '../services/api'
 import { getApiError, pick } from '../components/utils/crud'
+import { useToast } from '../composables/useToast'
+import Pagination from '../components/Pagination.vue'
+import SearchFilter from '../components/SearchFilter.vue'
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const users = ref([])
 const roles = ref([])
@@ -11,6 +17,16 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingUserId = ref(null)
+const currentPage = ref(1)
+const pageSize = 100
+const searchQuery = ref('')
+
+const showDeleteDialog = ref(false)
+const deletingUserId = ref(null)
+const deleteUserName = ref('')
+const deleteDependencies = ref([])
+const checkingDeps = ref(false)
+const deleting = ref(false)
 
 const defaultForm = () => ({ username: '', email: '', password: '', role_id: null, is_active: true, is_verified: false })
 const form = ref(defaultForm())
@@ -18,10 +34,22 @@ const form = ref(defaultForm())
 const loadUsers = async () => {
   loading.value = true; error.value = ''
   try {
-    const [usersRes, rolesRes] = await Promise.all([getUsers(0, 1000), getRoles()])
+    const skip = (currentPage.value - 1) * pageSize
+    const [usersRes, rolesRes] = await Promise.all([getUsers(skip, pageSize, searchQuery.value), getRoles()])
     users.value = usersRes.data.users; total.value = usersRes.data.total; roles.value = rolesRes.data
   } catch (err) { error.value = getApiError(err, 'Failed to load data') }
   finally { loading.value = false }
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  loadUsers()
+}
+
+const onSearch = (val) => {
+  searchQuery.value = val
+  currentPage.value = 1
+  loadUsers()
 }
 
 const openCreate = () => { editingUserId.value = null; form.value = defaultForm(); showModal.value = true }
@@ -59,16 +87,37 @@ const saveUser = async () => {
       if (oldRole && oldRole.role_id !== newRoleId) { try { await removeRole(userId, oldRole.role_id) } catch (e) { console.warn('Failed to remove old role', e) } }
       if (!oldRole || oldRole.role_id !== newRoleId) { await assignRole(userId, newRoleId) }
     } else { if (oldRole) { await removeRole(userId, oldRole.role_id) } }
-    closeModal(); await loadUsers()
+    closeModal(); currentPage.value = 1; await loadUsers()
   } catch (err) { error.value = getApiError(err, 'Failed to save user') }
   finally { saving.value = false }
 }
 
-const removeUser = async (userId) => {
-  if (!confirm('Deactivate this user?')) return
-  error.value = ''
-  try { await deleteUser(userId); await loadUsers() }
-  catch (err) { error.value = getApiError(err, 'Failed to delete user') }
+const confirmDeleteUser = async (userId, username) => {
+  deletingUserId.value = userId
+  deleteUserName.value = username
+  deleteDependencies.value = []
+  checkingDeps.value = true
+  showDeleteDialog.value = true
+
+  setTimeout(() => {
+    checkingDeps.value = false
+  }, 200)
+}
+
+const executeDeleteUser = async () => {
+  deleting.value = true
+  try {
+    await deleteUser(deletingUserId.value)
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadUsers()
+    toast.success('User deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete user'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
 }
 
 onMounted(loadUsers)
@@ -85,6 +134,9 @@ onMounted(loadUsers)
     <div v-if="loading" class="admin-loading">Loading users...</div>
 
     <div v-else class="admin-table-card">
+      <div class="px-4 pt-3 pb-2 border-b border-border-light">
+        <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search users..." />
+      </div>
       <div class="admin-record-count">{{ total }} user(s)</div>
       <table class="admin-table">
         <thead>
@@ -114,11 +166,12 @@ onMounted(loadUsers)
             </td>
             <td>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(user)">Edit</button>
-              <button class="admin-action-btn admin-action-delete" @click="removeUser(user.user_id)">Delete</button>
+              <button class="admin-action-btn admin-action-delete" @click="confirmDeleteUser(user.user_id, user.username)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 
     <div v-if="showModal" class="admin-modal-overlay">
@@ -148,5 +201,16 @@ onMounted(loadUsers)
         </form>
       </div>
     </div>
+
+    <ConfirmDeleteDialog
+      :show="showDeleteDialog"
+      title="Delete User"
+      :item-name="deleteUserName"
+      :dependencies="deleteDependencies"
+      :loading="checkingDeps"
+      :deleting="deleting"
+      @confirm="executeDeleteUser"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>

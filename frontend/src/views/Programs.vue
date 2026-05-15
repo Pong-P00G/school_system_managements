@@ -1,7 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { createProgram, deleteProgram, getDepartments, getPrograms, updateProgram } from '../services/api'
+import { createProgram, deleteProgram, getDepartments, getPrograms, getProgramStudents, updateProgram } from '../services/api'
 import { getApiError, pick, toNullableString } from '../components/utils/crud'
+import { useToast } from '../composables/useToast'
+import Pagination from '../components/Pagination.vue'
+import SearchFilter from '../components/SearchFilter.vue'
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const programs = ref([])
 const departments = ref([])
@@ -11,6 +17,16 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingProgramId = ref(null)
+const currentPage = ref(1)
+const pageSize = 100
+const searchQuery = ref('')
+
+const showDeleteDialog = ref(false)
+const deletingProgramId = ref(null)
+const deleteProgramName = ref('')
+const deleteDependencies = ref([])
+const checkingDeps = ref(false)
+const deleting = ref(false)
 
 const defaultForm = () => ({
   program_code: '',
@@ -32,7 +48,8 @@ const loadPrograms = async () => {
   loading.value = true
   error.value = ''
   try {
-    const [programsRes, departmentsRes] = await Promise.all([getPrograms(0, 200), getDepartments(0, 200)])
+    const skip = (currentPage.value - 1) * pageSize
+    const [programsRes, departmentsRes] = await Promise.all([getPrograms(skip, pageSize, null, null, searchQuery.value), getDepartments(0, 200)])
     programs.value = programsRes.data.programs
     total.value = programsRes.data.total
     departments.value = departmentsRes.data.departments
@@ -41,6 +58,17 @@ const loadPrograms = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const goToPage = (page) => {
+  currentPage.value = page
+  loadPrograms()
+}
+
+const onSearch = (val) => {
+  searchQuery.value = val
+  currentPage.value = 1
+  loadPrograms()
 }
 
 const openCreate = () => {
@@ -94,6 +122,7 @@ const saveProgram = async () => {
       await createProgram(payload)
     }
     closeModal()
+    currentPage.value = 1
     await loadPrograms()
   } catch (err) {
     error.value = getApiError(err, 'Failed to save program')
@@ -102,14 +131,39 @@ const saveProgram = async () => {
   }
 }
 
-const removeProgram = async (programId) => {
-  if (!confirm('Delete this program?')) return
-  error.value = ''
+const confirmDeleteProgram = async (programId, programName) => {
+  deletingProgramId.value = programId
+  deleteProgramName.value = programName
+  deleteDependencies.value = []
+  checkingDeps.value = true
+  showDeleteDialog.value = true
+
   try {
-    await deleteProgram(programId)
-    await loadPrograms()
+    const res = await getProgramStudents(programId)
+    const students = res.data?.students || []
+    if (students.length > 0) {
+      deleteDependencies.value = [`${students.length} student(s) are enrolled in this program`]
+    }
   } catch (err) {
-    error.value = getApiError(err, 'Failed to delete program')
+    console.warn('Failed to check dependencies', err)
+  } finally {
+    checkingDeps.value = false
+  }
+}
+
+const executeDeleteProgram = async () => {
+  deleting.value = true
+  try {
+    await deleteProgram(deletingProgramId.value)
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadPrograms()
+    toast.success('Program deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete program'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -132,6 +186,9 @@ onMounted(loadPrograms)
     <div v-if="loading" class="admin-loading">Loading programs...</div>
 
     <div v-else class="admin-table-card">
+      <div class="px-4 pt-3 pb-2 border-b border-border-light">
+        <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search programs..." />
+      </div>
       <div class="admin-record-count">{{ total }} program(s)</div>
       <table class="admin-table">
         <thead>
@@ -158,11 +215,12 @@ onMounted(loadPrograms)
             <td>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(program)">Edit</button>
               <button class="admin-action-btn admin-action-delete"
-                @click="removeProgram(program.program_id)">Delete</button>
+                @click="confirmDeleteProgram(program.program_id, program.program_name)">Delete</button>
             </td>
           </tr>
         </tbody>
       </table>
+      <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 
     <div v-if="showModal" class="admin-modal-overlay">
@@ -209,5 +267,16 @@ onMounted(loadPrograms)
         </form>
       </div>
     </div>
+
+    <ConfirmDeleteDialog
+      :show="showDeleteDialog"
+      title="Delete Program"
+      :item-name="deleteProgramName"
+      :dependencies="deleteDependencies"
+      :loading="checkingDeps"
+      :deleting="deleting"
+      @confirm="executeDeleteProgram"
+      @cancel="showDeleteDialog = false"
+    />
   </div>
 </template>

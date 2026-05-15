@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
-from app.models.academic import Course, Department
+from app.models.academic import Course, Department, CourseSection
 from app.schemas.academic import (
     CourseOut, CourseListOut, CourseCreate, CourseUpdate
 )
@@ -145,13 +145,23 @@ async def update_course(course_id: int, data: CourseUpdate, db: AsyncSession = D
 
 @router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_course(course_id: int, db: AsyncSession = Depends(get_db)):
-    """Delete a course (soft delete by setting is_active to False)."""
+    """Delete a course (hard delete)."""
     result = await db.execute(select(Course).where(Course.course_id == course_id))
     course = result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
 
-    course.is_active = False
+    # Check for dependent records
+    section_count = await db.scalar(
+        select(func.count(CourseSection.section_id)).where(CourseSection.course_id == course_id)
+    )
+    if section_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete course: {section_count} section(s) are still associated with this course. Delete them first."
+        )
+
+    await db.delete(course)
     await db.flush()
     return None
 

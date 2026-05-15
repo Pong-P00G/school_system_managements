@@ -143,3 +143,25 @@ async def test_pagination(client):
     resp = await client.get("/api/v1/departments/?skip=0&limit=5")
     assert resp.status_code == 200
     assert len(resp.json()["departments"]) <= 5
+
+
+@pytest.mark.asyncio
+async def test_delete_department_with_courses_returns_409(client):
+    """Deleting a department that still has courses returns 409."""
+    dept = await create_department(client, f"dc409_{BASE_SUFFIX}")
+    await create_course(client, f"dc409_{BASE_SUFFIX}", dept["department_id"])
+
+    resp = await client.delete(f"/api/v1/departments/{dept['department_id']}")
+    assert resp.status_code == 409
+    assert "course(s)" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_department_with_programs_returns_409(client):
+    """Deleting a department that still has programs returns 409."""
+    dept = await create_department(client, f"dp409_{BASE_SUFFIX}")
+    await create_program(client, f"dp409_{BASE_SUFFIX}", dept["department_id"])
+
+    resp = await client.delete(f"/api/v1/departments/{dept['department_id']}")
+    assert resp.status_code == 409
+    assert "program(s)" in resp.json()["detail"].lower()
