@@ -31,6 +31,14 @@
       <div class="delete-dialog-actions">
         <button class="admin-btn-cancel" @click="$emit('cancel')" :disabled="deleting">Cancel</button>
         <button
+          v-if="dependencies.length > 0 && !loading"
+          class="admin-btn-force-delete"
+          @click="$emit('forceConfirm')"
+          :disabled="deleting"
+        >
+          {{ deleting ? 'Deleting...' : 'Delete Anyway' }}
+        </button>
+        <button
           class="admin-btn-delete"
           @click="$emit('confirm')"
           :disabled="deleting || loading || dependencies.length > 0"
@@ -54,7 +62,7 @@ const props = defineProps({
   deleting: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['confirm', 'cancel'])
+const emit = defineEmits(['confirm', 'cancel', 'forceConfirm'])
 
 watch(() => props.loading, (newVal, oldVal) => {
   if (oldVal === true && newVal === false && props.dependencies.length === 0) {
@@ -178,6 +186,27 @@ watch(() => props.loading, (newVal, oldVal) => {
 }
 
 .admin-btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-btn-force-delete {
+  padding: 0.5rem 1rem;
+  background: #f97316;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm, 0.375rem);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.admin-btn-force-delete:hover:not(:disabled) {
+  background: #ea580c;
+}
+
+.admin-btn-force-delete:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

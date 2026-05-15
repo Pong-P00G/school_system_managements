@@ -309,7 +309,11 @@ async def update_student(student_id: UUID, data: StudentUpdate, db: AsyncSession
 
 
 @router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_student(student_id: UUID, db: AsyncSession = Depends(get_db)):
+async def delete_student(
+    student_id: UUID,
+    force: bool = Query(False),
+    db: AsyncSession = Depends(get_db)
+):
     """Delete a student profile."""
     result = await db.execute(
         select(Student)
@@ -320,17 +324,18 @@ async def delete_student(student_id: UUID, db: AsyncSession = Depends(get_db)):
     if not student:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
 
-    # Check for dependent records
-    if student.enrollments:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete student: {len(student.enrollments)} enrollment(s) exist. Remove them first."
-        )
-    if student.account and student.account.balance and float(student.account.balance) > 0:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete student: account has an outstanding balance of ${float(student.account.balance):.2f}. Settle the account first."
-        )
+    if not force:
+        # Check for dependent records
+        if student.enrollments:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot delete student: {len(student.enrollments)} enrollment(s) exist. Remove them first."
+            )
+        if student.account and student.account.balance and float(student.account.balance) > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot delete student: account has an outstanding balance of ${float(student.account.balance):.2f}. Settle the account first."
+            )
 
     await db.delete(student)
     await db.flush()

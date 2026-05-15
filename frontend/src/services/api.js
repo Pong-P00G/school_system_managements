@@ -45,7 +45,7 @@ export const getUsers = (skip = 0, limit = 100, search = null, isActive = null) 
 export const getUser = (userId) => api.get(`/users/${userId}`)
 export const createUser = (data) => api.post('/users/', data)
 export const updateUser = (userId, data) => api.put(`/users/${userId}`, data)
-export const deleteUser = (userId) => api.delete(`/users/${userId}`)
+export const deleteUser = (userId, params = {}) => api.delete(`/users/${userId}`, { params })
 export const assignRole = (userId, roleId) => api.post(`/users/${userId}/roles/${roleId}`)
 export const removeRole = (userId, roleId) => api.delete(`/users/${userId}/roles/${roleId}`)
 export const getRoles = () => api.get('/users/roles')
@@ -56,7 +56,7 @@ export const getDepartments = (skip = 0, limit = 100, search = null, isActive = 
 export const getDepartment = (id) => api.get(`/departments/${id}`)
 export const createDepartment = (data) => api.post('/departments/', data)
 export const updateDepartment = (id, data) => api.put(`/departments/${id}`, data)
-export const deleteDepartment = (id) => api.delete(`/departments/${id}`)
+export const deleteDepartment = (id, params = {}) => api.delete(`/departments/${id}`, { params })
 export const getDepartmentCourses = (id) => api.get(`/departments/${id}/courses`)
 export const getDepartmentPrograms = (id) => api.get(`/departments/${id}/programs`)
 
@@ -66,7 +66,7 @@ export const getCourses = (skip = 0, limit = 100, departmentId = null, search = 
 export const getCourse = (id) => api.get(`/courses/${id}`)
 export const createCourse = (data) => api.post('/courses/', data)
 export const updateCourse = (id, data) => api.put(`/courses/${id}`, data)
-export const deleteCourse = (id) => api.delete(`/courses/${id}`)
+export const deleteCourse = (id, params = {}) => api.delete(`/courses/${id}`, { params })
 export const getCourseSections = (id, termId = null) => api.get(`/courses/${id}/sections`, { params: { term_id: termId } })
 
 // --- Programs ---
@@ -75,7 +75,7 @@ export const getPrograms = (skip = 0, limit = 100, departmentId = null, degreeLe
 export const getProgram = (id) => api.get(`/programs/${id}`)
 export const createProgram = (data) => api.post('/programs/', data)
 export const updateProgram = (id, data) => api.put(`/programs/${id}`, data)
-export const deleteProgram = (id) => api.delete(`/programs/${id}`)
+export const deleteProgram = (id, params = {}) => api.delete(`/programs/${id}`, { params })
 export const getProgramStudents = (id) => api.get(`/programs/${id}/students`)
 
 // --- Students ---
@@ -84,7 +84,7 @@ export const getStudents = (skip = 0, limit = 100, programId = null, enrollmentS
 export const getStudent = (id) => api.get(`/students/${id}`)
 export const createStudent = (data) => api.post('/students/', data)
 export const updateStudent = (id, data) => api.put(`/students/${id}`, data)
-export const deleteStudent = (id) => api.delete(`/students/${id}`)
+export const deleteStudent = (id, params = {}) => api.delete(`/students/${id}`, { params })
 export const getStudentEnrollments = (id) => api.get(`/students/${id}/enrollments`)
 export const getStudentAccount = (id) => api.get(`/students/${id}/account`)
 export const getMyStudentProfile = () => api.get('/students/me')
@@ -97,7 +97,7 @@ export const getFaculty = (skip = 0, limit = 100, departmentId = null, employmen
 export const getFacultyById = (id) => api.get(`/faculty/${id}`)
 export const createFaculty = (data) => api.post('/faculty/', data)
 export const updateFaculty = (id, data) => api.put(`/faculty/${id}`, data)
-export const deleteFaculty = (id) => api.delete(`/faculty/${id}`)
+export const deleteFaculty = (id, params = {}) => api.delete(`/faculty/${id}`, { params })
 export const getFacultyProfile = () => api.get('/faculty/me')
 export const getFacultySections = (id = 'me', termId = null) => api.get(id === 'me' ? '/faculty/me/sections' : `/faculty/${id}/sections`, { params: { term_id: termId } })
 export const getFacultyAssignments = (id) => api.get(`/faculty/${id}/assignments`)
@@ -108,7 +108,7 @@ export const getStaff = (skip = 0, limit = 100, departmentId = null, employmentS
 export const getStaffMember = (id) => api.get(`/staff/${id}`)
 export const createStaff = (data) => api.post('/staff/', data)
 export const updateStaff = (id, data) => api.put(`/staff/${id}`, data)
-export const deleteStaff = (id) => api.delete(`/staff/${id}`)
+export const deleteStaff = (id, params = {}) => api.delete(`/staff/${id}`, { params })
 
 // --- Enrollments ---
 export const getEnrollments = (skip = 0, limit = 100, studentId = null, sectionId = null, enrollmentStatus = null, search = null) =>
@@ -116,7 +116,7 @@ export const getEnrollments = (skip = 0, limit = 100, studentId = null, sectionI
 export const getEnrollment = (id) => api.get(`/enrollments/${id}`)
 export const createEnrollment = (data) => api.post('/enrollments/', data)
 export const updateEnrollment = (id, data) => api.put(`/enrollments/${id}`, data)
-export const deleteEnrollment = (id) => api.delete(`/enrollments/${id}`)
+export const deleteEnrollment = (id, params = {}) => api.delete(`/enrollments/${id}`, { params })
 export const withdrawEnrollment = (id, reason = null) => api.post(`/enrollments/${id}/withdraw`, { reason })
 export const submitGrade = (id, grade, gradePoints = null, gradedBy = null) =>
   api.post(`/enrollments/${id}/grade`, { grade, grade_points: gradePoints, graded_by: gradedBy })
@@ -127,7 +127,7 @@ export const getTerms = (skip = 0, limit = 100, academicYear = null, termType = 
 export const getTerm = (id) => api.get(`/terms/${id}`)
 export const createTerm = (data) => api.post('/terms/', data)
 export const updateTerm = (id, data) => api.put(`/terms/${id}`, data)
-export const deleteTerm = (id) => api.delete(`/terms/${id}`)
+export const deleteTerm = (id, params = {}) => api.delete(`/terms/${id}`, { params })
 export const getCurrentTerm = () => api.get('/terms/current/active')
 export const getUpcomingTerms = (skip = 0, limit = 5) => api.get('/terms/current/upcoming', { params: { skip, limit } })
 
@@ -137,7 +137,7 @@ export const getSections = (skip = 0, limit = 100, course_id = null, term_id = n
 export const getSection = (id) => api.get(`/sections/${id}`)
 export const createSection = (data) => api.post('/sections/', data)
 export const updateSection = (id, data) => api.put(`/sections/${id}`, data)
-export const deleteSection = (id) => api.delete(`/sections/${id}`)
+export const deleteSection = (id, params = {}) => api.delete(`/sections/${id}`, { params })
 export const getSectionEnrollments = (id, search = null, skip = 0, limit = 100) =>
   api.get(`/sections/${id}/enrollments`, { params: { skip, limit, search: search || null } })
 export const getSectionAssignments = (id) => api.get(`/sections/${id}/assignments`)
@@ -148,7 +148,7 @@ export const getAssignments = (skip = 0, limit = 100, sectionId = null) =>
 export const getAssignment = (id) => api.get(`/assignments/${id}`)
 export const createAssignment = (data) => api.post('/assignments/', data)
 export const updateAssignment = (id, data) => api.put(`/assignments/${id}`, data)
-export const deleteAssignment = (id) => api.delete(`/assignments/${id}`)
+export const deleteAssignment = (id, params = {}) => api.delete(`/assignments/${id}`, { params })
 export const getAssignmentSubmissions = (id) => api.get(`/assignments/${id}/submissions`)
 export const submitAssignment = (id, data) => api.post(`/assignments/${id}/submit`, data)
 export const getSubmission = (id) => api.get(`/submissions/${id}`)

@@ -55,11 +55,12 @@ const goTo = (page) => {
         ← Prev
       </button>
 
-      <template v-for="(p, i) in visiblePages" :key="i">
-        <span v-if="p === '…'" class="px-1.5 text-ink-muted text-xs">…</span>
+      <template v-for="(p, i) in visiblePages">
+        <span v-if="p === '…'" :key="`ellipsis-${i}`" class="px-1.5 text-ink-muted text-xs">…</span>
         <button
           v-else
-          class="min-w-[32px] px-2 py-1.5 rounded-md text-xs font-medium transition-colors"
+          :key="`page-${i}`"
+          class="min-w-8 px-2 py-1.5 rounded-md text-xs font-medium transition-colors"
           :class="p === currentPage
             ? 'bg-primary text-white shadow-sm'
             : 'text-ink-muted hover:bg-gray-100 hover:text-ink'"

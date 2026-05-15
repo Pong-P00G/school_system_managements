@@ -149,6 +149,22 @@ const executeDeleteTerm = async () => {
   }
 }
 
+const forceDeleteTerm = async () => {
+  deleting.value = true
+  try {
+    await deleteTerm(deletingTermId.value, { force: true })
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadTerms()
+    toast.success('Term force-deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete academic term'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
 onMounted(loadTerms)
 </script>
 
@@ -250,6 +266,7 @@ onMounted(loadTerms)
       :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteTerm"
+      @forceConfirm="forceDeleteTerm"
       @cancel="showDeleteDialog = false"
     />
   </div>

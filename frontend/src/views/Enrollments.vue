@@ -136,6 +136,22 @@ const executeDeleteEnrollment = async () => {
   }
 }
 
+const forceDeleteEnrollment = async () => {
+  deleting.value = true
+  try {
+    await deleteEnrollment(deletingEnrollmentId.value, { force: true })
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadEnrollments()
+    toast.success('Enrollment force-deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete enrollment'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
 const studentLabelById = (studentId) => {
   const match = students.value.find((student) => student.student_id === studentId)
   return match ? match.student_number : studentId
@@ -275,6 +291,7 @@ onMounted(loadEnrollments)
       :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteEnrollment"
+      @forceConfirm="forceDeleteEnrollment"
       @cancel="showDeleteDialog = false"
     />
   </div>

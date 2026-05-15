@@ -155,6 +155,22 @@ const executeDeleteStudent = async () => {
   }
 }
 
+const forceDeleteStudent = async () => {
+  deleting.value = true
+  try {
+    await deleteStudent(deletingStudentId.value, { force: true })
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadStudents()
+    toast.success('Student force-deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete student'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
 const programNameById = (programId) => {
   const match = programs.value.find((program) => program.program_id === programId)
   return match ? match.program_name : `ID ${programId}`
@@ -277,6 +293,7 @@ onMounted(loadStudents)
       :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteStudent"
+      @forceConfirm="forceDeleteStudent"
       @cancel="showDeleteDialog = false"
     />
   </div>

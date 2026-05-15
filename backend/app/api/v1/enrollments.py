@@ -134,7 +134,11 @@ async def update_enrollment(enrollment_id: int, data: EnrollmentUpdate, db: Asyn
 
 
 @router.delete("/{enrollment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_enrollment(enrollment_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_enrollment(
+    enrollment_id: int,
+    force: bool = Query(False),
+    db: AsyncSession = Depends(get_db)
+):
     """Delete an enrollment (withdraw student from section)."""
     result = await db.execute(
         select(Enrollment)
@@ -145,12 +149,13 @@ async def delete_enrollment(enrollment_id: int, db: AsyncSession = Depends(get_d
     if not enrollment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enrollment not found")
 
-    # Check for dependent records
-    if enrollment.enrollment_status in ("enrolled", "active") and enrollment.grade is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot delete enrollment: a grade has already been submitted. Withdraw instead."
-        )
+    if not force:
+        # Check for dependent records
+        if enrollment.enrollment_status in ("enrolled", "active") and enrollment.grade is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot delete enrollment: a grade has already been submitted. Withdraw instead."
+            )
 
     # Update enrolled count
     if enrollment.section and enrollment.enrollment_status == "enrolled":

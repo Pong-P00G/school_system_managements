@@ -110,22 +110,27 @@ async def update_term(term_id: int, data: AcademicTermUpdate, db: AsyncSession =
 
 
 @router.delete("/{term_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_term(term_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_term(
+    term_id: int,
+    force: bool = Query(False),
+    db: AsyncSession = Depends(get_db)
+):
     """Delete an academic term."""
     result = await db.execute(select(AcademicTerm).where(AcademicTerm.term_id == term_id))
     term = result.scalar_one_or_none()
     if not term:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Academic term not found")
 
-    # Check for dependent records
-    section_count = await db.scalar(
-        select(func.count(CourseSection.section_id)).where(CourseSection.term_id == term_id)
-    )
-    if section_count:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete term: {section_count} course section(s) are scheduled in this term. Remove or reassign them first."
+    if not force:
+        # Check for dependent records
+        section_count = await db.scalar(
+            select(func.count(CourseSection.section_id)).where(CourseSection.term_id == term_id)
         )
+        if section_count:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot delete term: {section_count} course section(s) are scheduled in this term. Remove or reassign them first."
+            )
     await db.delete(term)
     await db.flush()
     return None

@@ -120,6 +120,22 @@ const executeDeleteUser = async () => {
   }
 }
 
+const forceDeleteUser = async () => {
+  deleting.value = true
+  try {
+    await deleteUser(deletingUserId.value, { force: true })
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadUsers()
+    toast.success('User force-deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete user'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
 onMounted(loadUsers)
 </script>
 
@@ -210,6 +226,7 @@ onMounted(loadUsers)
       :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteUser"
+      @forceConfirm="forceDeleteUser"
       @cancel="showDeleteDialog = false"
     />
   </div>

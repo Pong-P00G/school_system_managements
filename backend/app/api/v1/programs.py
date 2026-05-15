@@ -151,22 +151,27 @@ async def update_program(program_id: int, data: ProgramUpdate, db: AsyncSession 
 
 
 @router.delete("/{program_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_program(program_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_program(
+    program_id: int,
+    force: bool = Query(False),
+    db: AsyncSession = Depends(get_db)
+):
     """Delete a program (hard delete)."""
     result = await db.execute(select(Program).where(Program.program_id == program_id))
     program = result.scalar_one_or_none()
     if not program:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Program not found")
 
-    # Check for dependent records
-    student_count = await db.scalar(
-        select(func.count(Student.student_id)).where(Student.program_id == program_id)
-    )
-    if student_count:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete program: {student_count} student(s) are still enrolled in this program. Reassign them first."
+    if not force:
+        # Check for dependent records
+        student_count = await db.scalar(
+            select(func.count(Student.student_id)).where(Student.program_id == program_id)
         )
+        if student_count:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot delete program: {student_count} student(s) are still enrolled in this program. Reassign them first."
+            )
 
     await db.delete(program)
     await db.flush()

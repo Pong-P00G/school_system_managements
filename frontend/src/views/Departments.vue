@@ -175,6 +175,22 @@ const executeDeleteDepartment = async () => {
   }
 }
 
+const forceDeleteDepartment = async () => {
+  deleting.value = true
+  try {
+    await deleteDepartment(deletingDeptId.value, { force: true })
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadDepartments()
+    toast.success('Department force-deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete department'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
 onMounted(loadDepartments)
 </script>
 
@@ -291,6 +307,7 @@ onMounted(loadDepartments)
       :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteDepartment"
+      @forceConfirm="forceDeleteDepartment"
       @cancel="showDeleteDialog = false"
     />
   </div>

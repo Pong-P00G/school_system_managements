@@ -168,6 +168,22 @@ const executeDeleteCourse = async () => {
   }
 }
 
+const forceDeleteCourse = async () => {
+  deleting.value = true
+  try {
+    await deleteCourse(deletingCourseId.value, { force: true })
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadCourses()
+    toast.success('Course force-deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete course'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
 const departmentNameById = (departmentId) => {
   const match = departments.value.find((department) => department.department_id === departmentId)
   return match ? match.department_name : `ID ${departmentId}`
@@ -296,6 +312,7 @@ onMounted(loadCourses)
       :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteCourse"
+      @forceConfirm="forceDeleteCourse"
       @cancel="showDeleteDialog = false"
     />
   </div>

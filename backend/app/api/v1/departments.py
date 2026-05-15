@@ -133,7 +133,11 @@ async def update_department(
 
 
 @router.delete("/{department_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_department(department_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_department(
+    department_id: int,
+    force: bool = Query(False),
+    db: AsyncSession = Depends(get_db)
+):
     """Delete a department (soft delete by setting is_active=False)."""
     result = await db.execute(
         select(Department)
@@ -144,25 +148,26 @@ async def delete_department(department_id: int, db: AsyncSession = Depends(get_d
     if not dept:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
 
-    # Check for dependent records
-    if dept.courses:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete department: {len(dept.courses)} course(s) are still associated with this department. Reassign or remove them first."
+    if not force:
+        # Check for dependent records
+        if dept.courses:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot delete department: {len(dept.courses)} course(s) are still associated with this department. Reassign or remove them first."
+            )
+        if dept.programs:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot delete department: {len(dept.programs)} program(s) are still associated with this department. Reassign or remove them first."
+            )
+        faculty_count = await db.scalar(
+            select(func.count(Faculty.faculty_id)).where(Faculty.department_id == department_id)
         )
-    if dept.programs:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete department: {len(dept.programs)} program(s) are still associated with this department. Reassign or remove them first."
-        )
-    faculty_count = await db.scalar(
-        select(func.count(Faculty.faculty_id)).where(Faculty.department_id == department_id)
-    )
-    if faculty_count:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot delete department: {faculty_count} faculty member(s) are assigned to this department. Reassign them first."
-        )
+        if faculty_count:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot delete department: {faculty_count} faculty member(s) are assigned to this department. Reassign them first."
+            )
 
     dept.is_active = False
     await db.flush()

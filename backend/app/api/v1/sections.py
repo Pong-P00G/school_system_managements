@@ -194,26 +194,31 @@ async def update_section(section_id: int, data: CourseSectionUpdate, db: AsyncSe
 
 
 @router.delete("/{section_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_section(section_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_section(
+    section_id: int,
+    force: bool = Query(False),
+    db: AsyncSession = Depends(get_db)
+):
     """Delete a course section."""
     result = await db.execute(select(CourseSection).where(CourseSection.section_id == section_id))
     section = result.scalar_one_or_none()
     if not section:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course section not found")
 
-    # Check for dependent records
-    enrollment_count = await db.scalar(
-        select(func.count(Enrollment.enrollment_id)).where(Enrollment.section_id == section_id)
-    )
-    if enrollment_count:
-        detail = (
-            f"Cannot delete section: {enrollment_count} student(s) are enrolled."
-            " Unenroll them first."
+    if not force:
+        # Check for dependent records
+        enrollment_count = await db.scalar(
+            select(func.count(Enrollment.enrollment_id)).where(Enrollment.section_id == section_id)
         )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=detail,
-        )
+        if enrollment_count:
+            detail = (
+                f"Cannot delete section: {enrollment_count} student(s) are enrolled."
+                " Unenroll them first."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=detail,
+            )
 
     await db.delete(section)
     await db.flush()

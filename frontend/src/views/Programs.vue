@@ -167,6 +167,22 @@ const executeDeleteProgram = async () => {
   }
 }
 
+const forceDeleteProgram = async () => {
+  deleting.value = true
+  try {
+    await deleteProgram(deletingProgramId.value, { force: true })
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadPrograms()
+    toast.success('Program force-deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete program'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
 const departmentNameById = (departmentId) => {
   const match = departments.value.find((department) => department.department_id === departmentId)
   return match ? match.department_name : `ID ${departmentId}`
@@ -276,6 +292,7 @@ onMounted(loadPrograms)
       :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteProgram"
+      @forceConfirm="forceDeleteProgram"
       @cancel="showDeleteDialog = false"
     />
   </div>

@@ -142,6 +142,22 @@ const executeDeleteSection = async () => {
   }
 }
 
+const forceDeleteSection = async () => {
+  deleting.value = true
+  try {
+    await deleteSection(deletingSectionId.value, { force: true })
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadSections()
+    toast.success('Section force-deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete section'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
 const courseCodeById = (courseId) => {
   const match = courses.value.find((course) => course.course_id === courseId)
   return match ? match.course_code : `ID ${courseId}`
@@ -278,6 +294,7 @@ onMounted(loadSections)
       :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteSection"
+      @forceConfirm="forceDeleteSection"
       @cancel="showDeleteDialog = false"
     />
   </div>

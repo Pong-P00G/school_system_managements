@@ -148,6 +148,22 @@ const executeDeleteFaculty = async () => {
   }
 }
 
+const forceDeleteFaculty = async () => {
+  deleting.value = true
+  try {
+    await deleteFaculty(deletingFacultyId.value, { force: true })
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadFaculty()
+    toast.success('Faculty force-deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete faculty'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
 const departmentNameById = (departmentId) => {
   const match = departments.value.find((department) => department.department_id === departmentId)
   return match ? match.department_name : `ID ${departmentId}`
@@ -295,6 +311,7 @@ onMounted(loadFaculty)
       :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteFaculty"
+      @forceConfirm="forceDeleteFaculty"
       @cancel="showDeleteDialog = false"
     />
   </div>

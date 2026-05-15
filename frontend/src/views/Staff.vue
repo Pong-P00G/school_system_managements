@@ -135,6 +135,22 @@ const executeDeleteStaff = async () => {
   }
 }
 
+const forceDeleteStaff = async () => {
+  deleting.value = true
+  try {
+    await deleteStaff(deletingStaffId.value, { force: true })
+    showDeleteDialog.value = false
+    currentPage.value = 1
+    await loadStaff()
+    toast.success('Staff force-deleted successfully')
+  } catch (err) {
+    toast.error(getApiError(err, 'Failed to delete staff member'))
+    showDeleteDialog.value = false
+  } finally {
+    deleting.value = false
+  }
+}
+
 const departmentNameById = (departmentId) => {
   const match = departments.value.find((department) => department.department_id === departmentId)
   return match ? match.department_name : departmentId ? `ID ${departmentId}` : '-'
@@ -261,6 +277,7 @@ onMounted(loadStaff)
       :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteStaff"
+      @forceConfirm="forceDeleteStaff"
       @cancel="showDeleteDialog = false"
     />
   </div>
