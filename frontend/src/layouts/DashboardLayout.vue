@@ -159,44 +159,13 @@ const navigateTo = (path) => {
 </template>
 
 <style scoped>
-.fade-text-enter-active {
-    transition: opacity 0.2s ease 0.1s;
-}
-
-.fade-text-leave-active {
-    transition: opacity 0.1s ease;
-}
-
-.fade-text-enter-from,
-.fade-text-leave-to {
-    opacity: 0;
-}
-
-.fade-overlay-enter-active {
-    transition: opacity 0.2s ease;
-}
-
-.fade-overlay-leave-active {
-    transition: opacity 0.15s ease;
-}
-
-.fade-overlay-enter-from,
-.fade-overlay-leave-to {
-    opacity: 0;
-}
-
-.page-enter-active,
-.page-leave-active {
-    transition: all 0.2s ease-out;
-}
-
-.page-enter-from {
-    opacity: 0;
-    transform: translateY(6px);
-}
-
-.page-leave-to {
-    opacity: 0;
-    transform: translateY(-6px);
-}
+.fade-text-enter-active { transition: opacity 0.2s ease 0.1s; }
+.fade-text-leave-active { transition: opacity 0.1s ease; }
+.fade-text-enter-from, .fade-text-leave-to { opacity: 0; }
+.fade-overlay-enter-active { transition: opacity 0.2s ease; }
+.fade-overlay-leave-active { transition: opacity 0.15s ease; }
+.fade-overlay-enter-from, .fade-overlay-leave-to { opacity: 0; }
+.page-enter-active, .page-leave-active { transition: all 0.2s ease-out; }
+.page-enter-from { opacity: 0; transform: translateY(6px); }
+.page-leave-to { opacity: 0; transform: translateY(-6px); }
 </style>

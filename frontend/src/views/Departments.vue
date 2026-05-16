@@ -1,6 +1,6 @@
 <script setup>
-import { onMounted, ref } from 'vue'
-import { createDepartment, deleteDepartment, getDepartments, updateDepartment } from '../services/api'
+import { onMounted, ref, computed } from 'vue'
+import { createDepartment, deleteDepartment, getDepartments, getUsers, updateDepartment } from '../services/api'
 import { getApiError, pick, toDateInput, toNullableInt, toNullableString } from '../components/utils/crud'
 import { useToast } from '../composables/useToast'
 import Pagination from '../components/Pagination.vue'
@@ -19,6 +19,11 @@ const editingDepartmentId = ref(null)
 const currentPage = ref(1)
 const pageSize = 100
 const searchQuery = ref('')
+
+const users = ref([])
+const facultyUsers = computed(() =>
+  users.value.filter(u => u.roles && u.roles.some(r => ['faculty', 'professor'].includes(r.role?.role_name?.toLowerCase())))
+)
 
 const selectedIds = ref(new Set())
 const selectAll = () => {
@@ -60,9 +65,13 @@ const loadDepartments = async () => {
   error.value = ''
   try {
     const skip = (currentPage.value - 1) * pageSize
-    const response = await getDepartments(skip, pageSize, searchQuery.value)
+    const [response, usersRes] = await Promise.all([
+      getDepartments(skip, pageSize, searchQuery.value),
+      getUsers(0, 200),
+    ])
     departments.value = response.data.departments
     total.value = response.data.total
+    users.value = usersRes.data.users
   } catch (err) {
     error.value = getApiError(err, 'Failed to load departments')
   } finally {
@@ -292,8 +301,13 @@ onMounted(loadDepartments)
             <input v-model="form.established_date" type="date" />
           </div>
           <div>
-            <label class="form-label">Head Faculty ID</label>
-            <input v-model="form.head_faculty_id" />
+            <label class="form-label">Head Department ID</label>
+            <select v-model="form.head_faculty_id">
+              <option value="">Select</option>
+              <option v-for="user in facultyUsers" :key="user.user_id" :value="String(user.user_id)">
+                {{ user.username }} ({{ user.email }})
+              </option>
+            </select>
           </div>
           <label class="admin-checkbox-row">
             <input v-model="form.is_active" type="checkbox" />
@@ -336,50 +350,3 @@ onMounted(loadDepartments)
     </div>
   </div>
 </template>
-
-<style scoped>
-.th-checkbox, .td-checkbox {
-  width: 40px;
-  text-align: center;
-  vertical-align: middle;
-}
-.th-checkbox input, .td-checkbox input {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-.row-selected {
-  background-color: rgba(59, 130, 246, 0.05);
-}
-.admin-bulk-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  background: #fef2f2;
-  border-bottom: 1px solid #fecaca;
-}
-.bulk-count {
-  font-size: 14px;
-  font-weight: 600;
-  color: #b91c1c;
-}
-.admin-btn-delete-selected {
-  padding: 6px 16px;
-  background: #dc2626;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.admin-btn-delete-selected:hover:not(:disabled) {
-  background: #b91c1c;
-}
-.admin-btn-delete-selected:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-</style>

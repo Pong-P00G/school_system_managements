@@ -140,33 +140,9 @@ const isActive = (path) => route.path === path
 </template>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-    transition: opacity 0.2s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-    opacity: 0;
-}
-
-.slide-enter-active,
-.slide-leave-active {
-    transition: all 0.25s ease;
-    overflow: hidden;
-}
-
-.slide-enter-from,
-.slide-leave-to {
-    opacity: 0;
-    max-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
-.slide-enter-to,
-.slide-leave-from {
-    opacity: 1;
-    max-height: 400px;
-}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.slide-enter-active, .slide-leave-active { transition: all 0.25s ease; overflow: hidden; }
+.slide-enter-from, .slide-leave-to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+.slide-enter-to, .slide-leave-from { opacity: 1; max-height: 400px; }
 </style>
