@@ -98,6 +98,40 @@ async def create_program(data: ProgramCreate, db: AsyncSession = Depends(get_db)
     db.add(program)
     await db.flush()
     await db.refresh(program)
+    
+    # Send notification to all admin users
+    from app.models.user import User, UserRoleAssignment, UserRole
+    from app.models.notification import Notification
+    from app.api.v1.notifications import broadcast_notification
+    
+    # Get all admin/super-admin users
+    admin_users = await db.execute(
+        select(User).join(UserRoleAssignment, UserRoleAssignment.user_id == User.user_id).join(UserRole).where(
+            UserRole.role_name.in_(['admin', 'super-admin']),
+            UserRoleAssignment.is_active == True,
+            User.is_active == True
+        )
+    )
+    
+    for user in admin_users.scalars().all():
+        notification = Notification(
+            user_id=user.user_id,
+            title="New Program Created",
+            message=f"Program '{program.program_name}' ({program.program_code}) has been added to the system.",
+            notification_type="success",
+        )
+        db.add(notification)
+        await db.flush()
+        await db.refresh(notification)
+        
+        await broadcast_notification(user.user_id, {
+            "notification_id": notification.notification_id,
+            "title": notification.title,
+            "message": notification.message,
+            "notification_type": notification.notification_type,
+            "created_at": notification.created_at.isoformat() if notification.created_at else None,
+        })
+    
     return program
 
 

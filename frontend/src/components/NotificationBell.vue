@@ -2,9 +2,9 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useNotifications } from '../composables/useNotifications'
 import {
   getNotifications,
-  getUnreadNotificationCount,
   markNotificationRead,
   markAllNotificationsRead,
 } from '../services/api'
@@ -12,10 +12,10 @@ import {
 const router = useRouter()
 const authStore = useAuthStore()
 const showDropdown = ref(false)
-const notifications = ref([])
-const unreadCount = ref(0)
+const localNotifications = ref([])
 const loading = ref(false)
-let pollingTimer = null
+
+const { unreadCount, notifications: realtimeNotifications } = useNotifications()
 
 const typeColors = {
   info: '#3b82f6',
@@ -24,23 +24,26 @@ const typeColors = {
   error: '#ef4444',
 }
 
-const typeIcons = {
-  info: 'ℹ️',
-  success: '✅',
-  warning: '⚠️',
-  error: '❌',
-}
-
 async function loadNotifications() {
+  loading.value = true
   try {
-    const [notifRes, countRes] = await Promise.all([
-      getNotifications(0, 5, true),
-      getUnreadNotificationCount(),
-    ])
-    notifications.value = notifRes.data.notifications || []
-    unreadCount.value = countRes.data.unread_count || 0
+    const res = await getNotifications(0, 5, true)
+    localNotifications.value = res.data.notifications || []
   } catch (err) {
     console.error('Failed to load notifications:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+const showDetailModal = ref(false)
+const selectedNotification = ref(null)
+
+async function viewDetails(notif) {
+  selectedNotification.value = notif
+  showDetailModal.value = true
+  if (!notif.is_read) {
+    await markAsRead(notif)
   }
 }
 
@@ -49,7 +52,6 @@ async function markAsRead(notification) {
     await markNotificationRead(notification.notification_id)
     notification.is_read = true
     unreadCount.value = Math.max(0, unreadCount.value - 1)
-    notifications.value = notifications.value.filter(n => !n.is_read)
   } catch (err) {
     console.error('Failed to mark notification as read:', err)
   }
@@ -58,7 +60,7 @@ async function markAsRead(notification) {
 async function markAllAsRead() {
   try {
     await markAllNotificationsRead()
-    notifications.value = []
+    localNotifications.value = []
     unreadCount.value = 0
   } catch (err) {
     console.error('Failed to mark all as read:', err)
@@ -83,13 +85,10 @@ function handleClickOutside(event) {
 onMounted(() => {
   loadNotifications()
   document.addEventListener('click', handleClickOutside)
-  // Poll for new notifications every 30 seconds
-  pollingTimer = setInterval(loadNotifications, 30000)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
-  if (pollingTimer) clearInterval(pollingTimer)
 })
 
 watch(showDropdown, (val) => {
@@ -155,7 +154,7 @@ function formatTime(dateStr) {
           <div v-if="loading" class="notification-loading">
             Loading...
           </div>
-          <div v-else-if="notifications.length === 0" class="notification-empty">
+          <div v-else-if="localNotifications.length === 0" class="notification-empty">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="32"
@@ -174,11 +173,11 @@ function formatTime(dateStr) {
             <p>No new notifications</p>
           </div>
           <div
-            v-for="notif in notifications"
+            v-for="notif in localNotifications"
             :key="notif.notification_id"
             class="notification-item"
             :class="{ unread: !notif.is_read }"
-            @click="markAsRead(notif)"
+            @click="viewDetails(notif)"
           >
             <div
               class="notification-type-dot"
@@ -189,6 +188,41 @@ function formatTime(dateStr) {
               <div v-if="notif.message" class="notification-message">{{ notif.message }}</div>
               <div class="notification-time">{{ formatTime(notif.created_at) }}</div>
             </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Notification Detail Modal -->
+    <Transition name="modal">
+      <div v-if="showDetailModal" class="notification-modal-overlay" @click.self="showDetailModal = false">
+        <div class="notification-modal">
+          <div class="notification-modal-header">
+            <h3>{{ selectedNotification?.title }}</h3>
+            <button @click="showDetailModal = false" class="close-btn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="notification-modal-body">
+            <div class="notification-meta">
+              <span class="notification-type-badge" :style="{
+                backgroundColor: typeColors[selectedNotification?.notification_type] || '#3b82f6',
+                color: 'white'
+              }">
+                {{ selectedNotification?.notification_type || 'info' }}
+              </span>
+              <span class="notification-date">
+                {{ selectedNotification?.created_at ? new Date(selectedNotification.created_at).toLocaleString() : '' }}
+              </span>
+            </div>
+            <div class="notification-message-full">
+              {{ selectedNotification?.message || 'No message' }}
+            </div>
+          </div>
+          <div class="notification-modal-footer">
+            <button @click="showDetailModal = false" class="btn-close">Close</button>
           </div>
         </div>
       </div>
@@ -384,5 +418,133 @@ function formatTime(dateStr) {
 .dropdown-leave-to {
   opacity: 0;
   transform: translateY(-4px) scale(0.98);
+}
+
+/* Modal */
+.notification-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  padding: 1rem;
+}
+
+.notification-modal {
+  width: 100%;
+  max-width: 500px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.notification-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.notification-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.close-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.notification-modal-body {
+  padding: 24px;
+}
+
+.notification-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.notification-type-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.notification-date {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.notification-message-full {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #374151;
+  white-space: pre-wrap;
+}
+
+.notification-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-close {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-close:hover {
+  background: #e5e7eb;
+}
+
+.modal-enter-active {
+  transition: all 0.2s ease-out;
+}
+.modal-leave-active {
+  transition: all 0.15s ease-in;
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-from .notification-modal {
+  transform: scale(0.95) translateY(20px);
+}
+.modal-leave-to .notification-modal {
+  transform: scale(0.98) translateY(10px);
 }
 </style>

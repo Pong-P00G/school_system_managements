@@ -24,18 +24,18 @@ const defaultForm = () => ({ role_name: '', description: '', role_level: 99 })
 const form = ref(defaultForm())
 
 const levelColors = {
-  0: 'bg-red-100 text-red-800',
-  1: 'bg-orange-100 text-orange-800',
-  2: 'bg-amber-100 text-amber-800',
-  3: 'bg-yellow-100 text-yellow-800',
-  4: 'bg-lime-100 text-lime-800',
-  5: 'bg-green-100 text-green-800',
-  6: 'bg-teal-100 text-teal-800',
-  7: 'bg-cyan-100 text-cyan-800',
-  8: 'bg-blue-100 text-blue-800',
+  0: 'bg-red-50 text-red-700 border border-red-200',
+  1: 'bg-orange-50 text-orange-700 border border-orange-200',
+  2: 'bg-amber-50 text-amber-700 border border-amber-200',
+  3: 'bg-yellow-50 text-yellow-700 border border-yellow-200',
+  4: 'bg-lime-50 text-lime-700 border border-lime-200',
+  5: 'bg-green-50 text-green-700 border border-green-200',
+  6: 'bg-teal-50 text-teal-700 border border-teal-200',
+  7: 'bg-cyan-50 text-cyan-700 border border-cyan-200',
+  8: 'bg-blue-50 text-blue-700 border border-blue-200',
 }
 
-const getLevelClass = (level) => levelColors[level] || 'bg-gray-100 text-gray-800'
+const getLevelClass = (level) => levelColors[level] || 'bg-gray-50 text-gray-700 border border-gray-200'
 
 const loadRoles = async () => {
   loading.value = true; error.value = ''
@@ -169,13 +169,13 @@ onMounted(loadRoles)
     <div v-if="showModal" class="admin-modal-overlay" @click.self="closeModal">
       <div class="admin-modal admin-modal-sm">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="!mb-0">{{ editingRoleId ? 'Edit Role' : 'Create Role' }}</h2>
+          <h2 class="mb-0!">{{ editingRoleId ? 'Edit Role' : 'Create Role' }}</h2>
           <button @click="closeModal" class="text-ink-muted hover:text-ink transition-colors">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
         <form class="admin-form-grid" @submit.prevent="saveRole">
-          <div v-if="error" class="admin-error col-span-full !mb-2">{{ error }}</div>
+          <div v-if="error" class="admin-error col-span-full mb-2!">{{ error }}</div>
           <div class="col-span-full">
             <label class="form-label">Role Name</label>
             <input v-model="form.role_name" placeholder="e.g. moderator" required maxlength="50" class="w-full" />
@@ -185,12 +185,12 @@ onMounted(loadRoles)
             <div class="flex items-center gap-3">
               <input v-model.number="form.role_level" type="number" min="0" max="99" required class="w-24" />
               <div class="flex-1">
-                <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div class="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 rounded-full transition-all" :style="{width: Math.min(100, (form.role_level / 10) * 100) + '%'}"></div>
+                <div class="h-2 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
+                  <div class="h-full bg-primary rounded-full transition-all" :style="{width: Math.min(100, (form.role_level / 10) * 100) + '%'}"></div>
                 </div>
                 <div class="flex justify-between text-xs text-ink-muted mt-1">
-                  <span>High privilege</span>
-                  <span>Low privilege</span>
+                  <span>0 = Highest</span>
+                  <span>99 = Lowest</span>
                 </div>
               </div>
             </div>

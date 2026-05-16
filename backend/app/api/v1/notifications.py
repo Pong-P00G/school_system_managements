@@ -1,8 +1,11 @@
 """Notification management endpoints."""
 
+import asyncio
 from uuid import UUID
+from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +21,86 @@ from app.schemas.notification import (
 from app.api.deps import get_current_user
 
 router = APIRouter()
+
+# In-memory notification queue for SSE
+notification_queues: dict[UUID, asyncio.Queue] = {}
+
+
+async def notification_stream(user_id: UUID, db: AsyncSession) -> AsyncGenerator[str, None]:
+    """Stream notifications to client via SSE."""
+    import json
+    
+    queue = asyncio.Queue()
+    notification_queues[user_id] = queue
+    
+    try:
+        # Send initial unread count
+        result = await db.execute(
+            select(func.count(Notification.notification_id)).where(
+                Notification.user_id == user_id,
+                Notification.is_read == False,
+            )
+        )
+        count = result.scalar()
+        yield f"data: {json.dumps({'type': 'unread_count', 'count': count})}\n\n"
+        
+        # Keep connection alive and send updates
+        while True:
+            try:
+                notification = await asyncio.wait_for(queue.get(), timeout=30)
+                yield f"data: {json.dumps({'type': 'new_notification', 'notification': notification})}\n\n"
+            except asyncio.TimeoutError:
+                # Send heartbeat to keep connection alive
+                yield f": heartbeat\n\n"
+    finally:
+        notification_queues.pop(user_id, None)
+
+
+@router.get("/stream")
+async def notification_sse(
+    token: str = Query(..., description="JWT access token"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Server-Sent Events endpoint for real-time notifications."""
+    # Manually validate token since EventSource can't send headers
+    from app.core.security import decode_access_token
+    from uuid import UUID
+    
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    user_id_str = payload.get("sub")
+    if not user_id_str:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        user_id = UUID(user_id_str)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # Verify user exists
+    result = await db.execute(select(User).where(User.user_id == user_id))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+    
+    return StreamingResponse(
+        notification_stream(user_id, db),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+async def broadcast_notification(user_id: UUID, notification_data: dict):
+    """Broadcast notification to user's SSE stream if connected."""
+    if user_id in notification_queues:
+        await notification_queues[user_id].put(notification_data)
+
 
 
 @router.get("/", response_model=NotificationListOut)
@@ -124,6 +207,16 @@ async def create_notification(
     db.add(notification)
     await db.flush()
     await db.refresh(notification)
+    
+    # Broadcast to SSE stream
+    await broadcast_notification(data.user_id, {
+        "notification_id": notification.notification_id,
+        "title": notification.title,
+        "message": notification.message,
+        "notification_type": notification.notification_type,
+        "created_at": notification.created_at.isoformat() if notification.created_at else None,
+    })
+    
     return notification
 
 
