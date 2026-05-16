@@ -258,7 +258,7 @@ class EnrollmentCreate(EnrollmentBase):
 class EnrollmentUpdate(BaseModel):
     enrollment_status: str | None = None
     grade: str | None = None
-    grade_points: Decimal | None = None
+    grade_points: float | None = None
     credits_earned: int | None = None
     attendance_percentage: Decimal | None = None
     midterm_grade: str | None = None
@@ -274,7 +274,7 @@ class EnrollmentOut(BaseModel):
     enrollment_date: datetime | None = None
     enrollment_status: str
     grade: str | None = None
-    grade_points: Decimal | None = None
+    grade_points: float | None = None
     credits_earned: int = 0
     attendance_percentage: Decimal | None = None
     midterm_grade: str | None = None

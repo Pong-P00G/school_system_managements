@@ -28,6 +28,9 @@ from app.schemas.review import (
     ReviewBase, ReviewCreate, ReviewUpdate, ReviewOut, ReviewListOut,
     ReviewSummaryOut, ReviewableEnrollmentOut,
 )
+from app.schemas.notification import (
+    NotificationBase, NotificationCreate, NotificationUpdate, NotificationOut, NotificationListOut,
+)
 
 __all__ = [
     # User schemas
@@ -143,4 +146,10 @@ __all__ = [
     "ReviewListOut",
     "ReviewSummaryOut",
     "ReviewableEnrollmentOut",
+    # Notification schemas
+    "NotificationBase",
+    "NotificationCreate",
+    "NotificationUpdate",
+    "NotificationOut",
+    "NotificationListOut",
 ]

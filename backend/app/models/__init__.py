@@ -9,6 +9,7 @@ from app.models.people import (
     Attendance, StudentAccount, FinancialTransaction
 )
 from app.models.review import Review
+from app.models.notification import Notification
 
 __all__ = [
     # User models
@@ -38,6 +39,8 @@ __all__ = [
     "AssignmentTeamMember",
     # Review models
     "Review",
+    # Notification model
+    "Notification",
 ]
 
 from app.models.groups import AssignmentTeam, AssignmentTeamMember

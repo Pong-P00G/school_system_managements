@@ -3,10 +3,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db
-from app.models.academic import Department, Course, Program
-from app.models.people import Faculty
+
+from app.models.academic import Department
 from app.schemas.academic import (
     DepartmentOut, DepartmentListOut, DepartmentCreate, DepartmentUpdate
 )
@@ -17,7 +17,7 @@ router = APIRouter()
 @router.get("/", response_model=DepartmentListOut)
 async def list_departments(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     search: str | None = Query(None),
     is_active: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),
@@ -135,42 +135,24 @@ async def update_department(
 @router.delete("/{department_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_department(
     department_id: int,
-    force: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a department (soft delete by setting is_active=False)."""
+    """Delete a department and rely on database cascade rules."""
     result = await db.execute(
-        select(Department)
-        .options(selectinload(Department.courses), selectinload(Department.programs))
-        .where(Department.department_id == department_id)
+        select(Department).where(Department.department_id == department_id)
     )
     dept = result.scalar_one_or_none()
     if not dept:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
-
-    if not force:
-        # Check for dependent records
-        if dept.courses:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete department: {len(dept.courses)} course(s) are still associated with this department. Reassign or remove them first."
-            )
-        if dept.programs:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete department: {len(dept.programs)} program(s) are still associated with this department. Reassign or remove them first."
-            )
-        faculty_count = await db.scalar(
-            select(func.count(Faculty.faculty_id)).where(Faculty.department_id == department_id)
+    try:
+        await db.delete(dept)
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete department: existing references in the database prevent deletion.",
         )
-        if faculty_count:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete department: {faculty_count} faculty member(s) are assigned to this department. Reassign them first."
-            )
-
-    dept.is_active = False
-    await db.flush()
     return None
 
 
@@ -178,7 +160,7 @@ async def delete_department(
 async def get_department_courses(
     department_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all courses for a department."""
@@ -207,7 +189,7 @@ async def get_department_courses(
 async def get_department_programs(
     department_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all programs for a department."""

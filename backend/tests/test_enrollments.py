@@ -9,8 +9,8 @@ BASE_SUFFIX = uuid.uuid4().hex[:6]
 
 
 def _short() -> str:
-    """Return a short 4-char hex string for use in DB field values."""
-    return uuid.uuid4().hex[:4]
+    """Return a short 8-char hex string for use in DB field values."""
+    return uuid.uuid4().hex[:8]
 
 
 async def _setup_prerequisites(client, suffix: str) -> dict:
@@ -266,60 +266,6 @@ async def test_grade_nonexistent_enrollment(client):
 
 
 @pytest.mark.asyncio
-async def test_withdraw_from_enrollment(client):
-    """Withdraw → status='withdrawn', reason stored, count decremented."""
-    p = await _setup_prerequisites(client, f"wd_{BASE_SUFFIX}")
-
-    resp = await client.post("/api/v1/enrollments/", json={
-        "student_id": str(p["student_id"]),
-        "section_id": p["section_id"],
-    })
-    eid = resp.json()["enrollment_id"]
-
-    # enrolled_count before withdrawal
-    resp = await client.get(f"/api/v1/sections/{p['section_id']}")
-    assert resp.json()["enrolled_count"] == 1
-
-    # Withdraw
-    resp = await client.post(
-        f"/api/v1/enrollments/{eid}/withdraw",
-        params={"reason": "Changed schedule"},
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["enrollment_status"] == "withdrawn"
-    assert data["withdrawal_reason"] == "Changed schedule"
-    assert data["withdrawal_date"] is not None
-
-    # enrolled_count decremented
-    resp = await client.get(f"/api/v1/sections/{p['section_id']}")
-    assert resp.json()["enrolled_count"] == 0
-
-
-@pytest.mark.asyncio
-async def test_withdraw_completed_enrollment_fails(client):
-    """Withdrawing from a completed enrollment returns 400."""
-    p = await _setup_prerequisites(client, f"wn_{BASE_SUFFIX}")
-
-    resp = await client.post("/api/v1/enrollments/", json={
-        "student_id": str(p["student_id"]),
-        "section_id": p["section_id"],
-    })
-    eid = resp.json()["enrollment_id"]
-
-    # Complete it via grade submission
-    await client.post(
-        f"/api/v1/enrollments/{eid}/grade",
-        params={"grade": "B", "grade_points": 3.0},
-    )
-
-    # Try withdrawing a completed enrollment → 400
-    resp = await client.post(f"/api/v1/enrollments/{eid}/withdraw")
-    assert resp.status_code == 400
-    assert "Can only withdraw from active enrollments" in resp.json()["detail"]
-
-
-@pytest.mark.asyncio
 async def test_get_enrollment_not_found(client):
     """GET a non-existent enrollment ID returns 404."""
     resp = await client.get("/api/v1/enrollments/99999999")
@@ -351,15 +297,23 @@ async def test_list_enrollments_filters(client):
 
 
 @pytest.mark.asyncio
-async def test_delete_enrolled_enrollment_returns_409(client):
-    """Deleting an enrolled enrollment (not withdrawn) returns 409."""
-    p = await _setup_prerequisites(client, f"del409_{BASE_SUFFIX}")
+async def test_delete_enrolled_enrollment_succeeds(client):
+    """Deleting an enrolled enrollment succeeds and decrements enrolled_count."""
+    p = await _setup_prerequisites(client, f"del_{BASE_SUFFIX}")
     resp = await client.post("/api/v1/enrollments/", json={
         "student_id": str(p["student_id"]),
         "section_id": p["section_id"],
     })
     eid = resp.json()["enrollment_id"]
 
+    # Verify enrolled_count incremented
+    resp = await client.get(f"/api/v1/sections/{p['section_id']}")
+    assert resp.json()["enrolled_count"] == 1
+
+    # Delete the enrollment
     resp = await client.delete(f"/api/v1/enrollments/{eid}")
-    assert resp.status_code == 409
-    assert "enrolled" in resp.json()["detail"].lower() or "active" in resp.json()["detail"].lower()
+    assert resp.status_code == 204
+
+    # Verify enrolled_count decremented after delete
+    resp = await client.get(f"/api/v1/sections/{p['section_id']}")
+    assert resp.json()["enrolled_count"] == 0

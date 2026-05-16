@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { createDepartment, deleteDepartment, getDepartmentCourses, getDepartmentPrograms, getDepartments, updateDepartment } from '../services/api'
+import { createDepartment, deleteDepartment, getDepartments, updateDepartment } from '../services/api'
 import { getApiError, pick, toDateInput, toNullableInt, toNullableString } from '../components/utils/crud'
 import { useToast } from '../composables/useToast'
 import Pagination from '../components/Pagination.vue'
@@ -20,11 +20,23 @@ const currentPage = ref(1)
 const pageSize = 100
 const searchQuery = ref('')
 
+const selectedIds = ref(new Set())
+const selectAll = () => {
+  if (selectedIds.value.size === departments.value.length) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(departments.value.map(d => d.department_id))
+  }
+}
+const toggleSelect = (id) => {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id); else next.add(id)
+  selectedIds.value = next
+}
+
 const showDeleteDialog = ref(false)
 const deletingDeptId = ref(null)
 const deleteDeptName = ref('')
-const deleteDependencies = ref([])
-const checkingDeps = ref(false)
 const deleting = ref(false)
 
 const defaultForm = () => ({
@@ -59,11 +71,13 @@ const loadDepartments = async () => {
 }
 
 const goToPage = (page) => {
+  selectedIds.value = new Set()
   currentPage.value = page
   loadDepartments()
 }
 
 const onSearch = (val) => {
+  selectedIds.value = new Set()
   searchQuery.value = val
   currentPage.value = 1
   loadDepartments()
@@ -130,33 +144,10 @@ const saveDepartment = async () => {
   }
 }
 
-const confirmDeleteDepartment = async (departmentId, deptName) => {
+const confirmDeleteDepartment = (departmentId, deptName) => {
   deletingDeptId.value = departmentId
   deleteDeptName.value = deptName
-  deleteDependencies.value = []
-  checkingDeps.value = true
   showDeleteDialog.value = true
-
-  try {
-    const [coursesRes, programsRes] = await Promise.all([
-      getDepartmentCourses(departmentId),
-      getDepartmentPrograms(departmentId),
-    ])
-    const deps = []
-    if (coursesRes.data?.total || coursesRes.data?.courses?.length) {
-      const count = coursesRes.data.total ?? coursesRes.data.courses.length
-      deps.push(`${count} course(s) assigned to this department`)
-    }
-    if (programsRes.data?.total || programsRes.data?.programs?.length) {
-      const count = programsRes.data.total ?? programsRes.data.programs.length
-      deps.push(`${count} program(s) belong to this department`)
-    }
-    deleteDependencies.value = deps
-  } catch (err) {
-    console.warn('Failed to check dependencies', err)
-  } finally {
-    checkingDeps.value = false
-  }
 }
 
 const executeDeleteDepartment = async () => {
@@ -175,20 +166,31 @@ const executeDeleteDepartment = async () => {
   }
 }
 
-const forceDeleteDepartment = async () => {
-  deleting.value = true
-  try {
-    await deleteDepartment(deletingDeptId.value, { force: true })
-    showDeleteDialog.value = false
-    currentPage.value = 1
-    await loadDepartments()
-    toast.success('Department force-deleted successfully')
-  } catch (err) {
-    toast.error(getApiError(err, 'Failed to delete department'))
-    showDeleteDialog.value = false
-  } finally {
-    deleting.value = false
+const bulkDeleting = ref(false)
+const showBulkDeleteDialog = ref(false)
+const deleteSelectedDepartments = async () => {
+  bulkDeleting.value = true
+  showBulkDeleteDialog.value = false
+  const ids = [...selectedIds.value]
+  let successCount = 0
+  let failCount = 0
+  for (const id of ids) {
+    try {
+      await deleteDepartment(id)
+      successCount++
+    } catch {
+      failCount++
+    }
   }
+  selectedIds.value = new Set()
+  currentPage.value = 1
+  await loadDepartments()
+  if (failCount > 0) {
+    toast.warning(`Deleted ${successCount} department(s), ${failCount} failed`)
+  } else {
+    toast.success(`Deleted ${successCount} department(s)`)
+  }
+  bulkDeleting.value = false
 }
 
 onMounted(loadDepartments)
@@ -210,9 +212,18 @@ onMounted(loadDepartments)
         <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search departments..." />
       </div>
       <div class="admin-record-count">{{ total }} department(s)</div>
+      <div v-if="selectedIds.size > 0" class="admin-bulk-actions">
+        <span class="bulk-count">{{ selectedIds.size }} selected</span>
+        <button class="admin-btn-delete-selected" :disabled="bulkDeleting" @click="showBulkDeleteDialog = true">
+          {{ bulkDeleting ? 'Deleting...' : 'Delete Selected' }}
+        </button>
+      </div>
       <table class="admin-table">
         <thead>
           <tr>
+            <th class="th-checkbox">
+              <input type="checkbox" :checked="departments.length > 0 && selectedIds.size === departments.length" @change="selectAll" />
+            </th>
             <th>Code</th>
             <th>Name</th>
             <th>Building</th>
@@ -221,7 +232,10 @@ onMounted(loadDepartments)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="dept in departments" :key="dept.department_id">
+          <tr v-for="dept in departments" :key="dept.department_id" :class="{ 'row-selected': selectedIds.has(dept.department_id) }">
+            <td class="td-checkbox">
+              <input type="checkbox" :checked="selectedIds.has(dept.department_id)" @change="toggleSelect(dept.department_id)" />
+            </td>
             <td class="cell-primary">{{ dept.department_code }}</td>
             <td class="font-medium text-ink">{{ dept.department_name }}</td>
             <td>{{ dept.building || '-' }}</td>
@@ -303,12 +317,69 @@ onMounted(loadDepartments)
       :show="showDeleteDialog"
       title="Delete Department"
       :item-name="deleteDeptName"
-      :dependencies="deleteDependencies"
-      :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteDepartment"
-      @forceConfirm="forceDeleteDepartment"
       @cancel="showDeleteDialog = false"
     />
+
+    <div v-if="showBulkDeleteDialog" class="admin-modal-overlay" @click.self="showBulkDeleteDialog = false">
+      <div class="admin-modal admin-modal-sm">
+        <h2>Delete {{ selectedIds.size }} Department(s)</h2>
+        <p class="text-ink-muted mb-4">Are you sure you want to delete {{ selectedIds.size }} selected department(s)? All associated data will be permanently deleted.</p>
+        <div class="admin-form-actions">
+          <button type="button" class="admin-btn-cancel" @click="showBulkDeleteDialog = false">Cancel</button>
+          <button :disabled="bulkDeleting" class="admin-btn-delete-selected" @click="deleteSelectedDepartments">
+            {{ bulkDeleting ? 'Deleting...' : 'Delete All' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.th-checkbox, .td-checkbox {
+  width: 40px;
+  text-align: center;
+  vertical-align: middle;
+}
+.th-checkbox input, .td-checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.row-selected {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+.admin-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #fef2f2;
+  border-bottom: 1px solid #fecaca;
+}
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+.admin-btn-delete-selected {
+  padding: 6px 16px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-btn-delete-selected:hover:not(:disabled) {
+  background: #b91c1c;
+}
+.admin-btn-delete-selected:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+</style>

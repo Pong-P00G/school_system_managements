@@ -1,0 +1,61 @@
+$kind: http-request
+url: http://localhost:3001/api/v1/courses/?skip=0&limit=100
+method: GET
+queryParams:
+  skip: "0"
+  limit: "100"
+scripts:
+  - type: afterResponse
+    code: |-
+      var template = `
+      <style>
+        body { font-family: Arial, sans-serif; padding: 16px; }
+        h2 { color: #333; }
+        table { border-collapse: collapse; width: 100%; font-size: 13px; }
+        th { background-color: #FF6C37; color: white; padding: 10px 12px; text-align: left; }
+        td { padding: 8px 12px; border-bottom: 1px solid #ddd; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f1f1; }
+        .badge-active { background: #28a745; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+        .badge-inactive { background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+      </style>
+      <h2>Courses ({{total}} total)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Code</th>
+            <th>Course Name</th>
+            <th>Dept ID</th>
+            <th>Credits</th>
+            <th>Level</th>
+            <th>Lecture Hrs</th>
+            <th>Lab Hrs</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each courses}}
+          <tr>
+            <td>{{course_id}}</td>
+            <td><strong>{{course_code}}</strong></td>
+            <td>{{course_name}}</td>
+            <td>{{department_id}}</td>
+            <td>{{credits}}</td>
+            <td>{{course_level}}</td>
+            <td>{{lecture_hours}}</td>
+            <td>{{lab_hours}}</td>
+            <td>{{#if is_active}}<span class="badge-active">Active</span>{{else}}<span class="badge-inactive">Inactive</span>{{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      `;
+
+      var jsonData = pm.response.json();
+      pm.visualizer.set(template, {
+          courses: jsonData.courses,
+          total: jsonData.courses ? jsonData.courses.length : 0
+      });
+    language: text/javascript
+order: 1000

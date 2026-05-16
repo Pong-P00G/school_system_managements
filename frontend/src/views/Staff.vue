@@ -22,11 +22,23 @@ const currentPage = ref(1)
 const pageSize = 100
 const searchQuery = ref('')
 
+const selectedIds = ref(new Set())
+const selectAll = () => {
+  if (selectedIds.value.size === staff.value.length) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(staff.value.map(s => s.staff_id))
+  }
+}
+const toggleSelect = (id) => {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id); else next.add(id)
+  selectedIds.value = next
+}
+
 const showDeleteDialog = ref(false)
 const deletingStaffId = ref(null)
 const deleteStaffName = ref('')
-const deleteDependencies = ref([])
-const checkingDeps = ref(false)
 const deleting = ref(false)
 
 const defaultForm = () => ({
@@ -52,11 +64,13 @@ const loadStaff = async () => {
 }
 
 const goToPage = (page) => {
+  selectedIds.value = new Set()
   currentPage.value = page
   loadStaff()
 }
 
 const onSearch = (val) => {
+  selectedIds.value = new Set()
   searchQuery.value = val
   currentPage.value = 1
   loadStaff()
@@ -107,16 +121,10 @@ const saveStaff = async () => {
   finally { saving.value = false }
 }
 
-const confirmDeleteStaff = async (staffId, name) => {
+const confirmDeleteStaff = (staffId, name) => {
   deletingStaffId.value = staffId
   deleteStaffName.value = name
-  deleteDependencies.value = []
-  checkingDeps.value = true
   showDeleteDialog.value = true
-
-  setTimeout(() => {
-    checkingDeps.value = false
-  }, 300)
 }
 
 const executeDeleteStaff = async () => {
@@ -135,20 +143,32 @@ const executeDeleteStaff = async () => {
   }
 }
 
-const forceDeleteStaff = async () => {
-  deleting.value = true
-  try {
-    await deleteStaff(deletingStaffId.value, { force: true })
-    showDeleteDialog.value = false
-    currentPage.value = 1
-    await loadStaff()
-    toast.success('Staff force-deleted successfully')
-  } catch (err) {
-    toast.error(getApiError(err, 'Failed to delete staff member'))
-    showDeleteDialog.value = false
-  } finally {
-    deleting.value = false
+
+const bulkDeleting = ref(false)
+const showBulkDeleteDialog = ref(false)
+const deleteSelectedStaff = async () => {
+  bulkDeleting.value = true
+  showBulkDeleteDialog.value = false
+  const ids = [...selectedIds.value]
+  let successCount = 0
+  let failCount = 0
+  for (const id of ids) {
+    try {
+      await deleteStaff(id)
+      successCount++
+    } catch {
+      failCount++
+    }
   }
+  selectedIds.value = new Set()
+  currentPage.value = 1
+  await loadStaff()
+  if (failCount > 0) {
+    toast.warning(`Deleted ${successCount} staff member(s), ${failCount} failed`)
+  } else {
+    toast.success(`Deleted ${successCount} staff member(s)`)
+  }
+  bulkDeleting.value = false
 }
 
 const departmentNameById = (departmentId) => {
@@ -180,9 +200,18 @@ onMounted(loadStaff)
         <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search staff..." />
       </div>
       <div class="admin-record-count">{{ total }} staff member(s)</div>
+      <div v-if="selectedIds.size > 0" class="admin-bulk-actions">
+        <span class="bulk-count">{{ selectedIds.size }} selected</span>
+        <button class="admin-btn-delete-selected" :disabled="bulkDeleting" @click="showBulkDeleteDialog = true">
+          {{ bulkDeleting ? 'Deleting...' : 'Delete Selected' }}
+        </button>
+      </div>
       <table class="admin-table">
         <thead>
           <tr>
+            <th class="th-checkbox">
+              <input type="checkbox" :checked="staff.length > 0 && selectedIds.size === staff.length" @change="selectAll" />
+            </th>
             <th>Employee</th>
             <th>Job Title</th>
             <th>Department</th>
@@ -191,7 +220,10 @@ onMounted(loadStaff)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="member in staff" :key="member.staff_id">
+          <tr v-for="member in staff" :key="member.staff_id" :class="{ 'row-selected': selectedIds.has(member.staff_id) }">
+            <td class="td-checkbox">
+              <input type="checkbox" :checked="selectedIds.has(member.staff_id)" @change="toggleSelect(member.staff_id)" />
+            </td>
             <td class="cell-primary">{{ member.employee_number }}</td>
             <td>{{ member.job_title }}</td>
             <td>{{ departmentNameById(member.department_id) }}</td>
@@ -273,12 +305,69 @@ onMounted(loadStaff)
       :show="showDeleteDialog"
       title="Delete Staff"
       :item-name="deleteStaffName"
-      :dependencies="deleteDependencies"
-      :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteStaff"
-      @forceConfirm="forceDeleteStaff"
       @cancel="showDeleteDialog = false"
     />
+
+    <div v-if="showBulkDeleteDialog" class="admin-modal-overlay" @click.self="showBulkDeleteDialog = false">
+      <div class="admin-modal admin-modal-sm">
+        <h2>Delete {{ selectedIds.size }} Staff Member(s)</h2>
+        <p class="text-ink-muted mb-4">Are you sure you want to delete {{ selectedIds.size }} selected staff member(s)? This action cannot be undone. All associated data will also be permanently deleted.</p>
+        <div class="admin-form-actions">
+          <button type="button" class="admin-btn-cancel" @click="showBulkDeleteDialog = false">Cancel</button>
+          <button :disabled="bulkDeleting" class="admin-btn-delete-selected" @click="deleteSelectedStaff">
+            {{ bulkDeleting ? 'Deleting...' : 'Delete All' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.th-checkbox, .td-checkbox {
+  width: 40px;
+  text-align: center;
+  vertical-align: middle;
+}
+.th-checkbox input, .td-checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.row-selected {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+.admin-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #fef2f2;
+  border-bottom: 1px solid #fecaca;
+}
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+.admin-btn-delete-selected {
+  padding: 6px 16px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-btn-delete-selected:hover:not(:disabled) {
+  background: #b91c1c;
+}
+.admin-btn-delete-selected:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+</style>

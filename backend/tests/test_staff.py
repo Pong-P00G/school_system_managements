@@ -96,8 +96,8 @@ async def test_create_staff_invalid_user(client):
         "employee_number": f"en{_short()}",
         "hire_date": "2025-01-15",
         "job_title": "Admin",
-        "job_category": "Administrative",
-        "employment_type": "full_time",
+        "job_category": "administrative",
+        "employment_type": "full-time",
     })
     assert resp.status_code == 404
 
@@ -115,8 +115,8 @@ async def test_create_staff_duplicate_employee_number(client):
         "employee_number": emp_num,
         "hire_date": "2025-01-15",
         "job_title": "Admin",
-        "job_category": "Administrative",
-        "employment_type": "full_time",
+        "job_category": "administrative",
+        "employment_type": "full-time",
     })
     assert resp.status_code == 409
 
@@ -132,8 +132,8 @@ async def test_create_staff_with_department(client):
         "department_id": dept["department_id"],
         "hire_date": "2025-01-15",
         "job_title": "Department Assistant",
-        "job_category": "Administrative",
-        "employment_type": "full_time",
+        "job_category": "administrative",
+        "employment_type": "full-time",
     })
     assert resp.status_code == 201
     assert resp.json()["department_id"] == dept["department_id"]

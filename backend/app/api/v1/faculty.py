@@ -14,11 +14,6 @@ from app.api.deps import get_current_user
 
 router = APIRouter()
 
-
-# ──────────────────────────────────────────────
-# /me  endpoints  (MUST come BEFORE /{faculty_id})
-# ──────────────────────────────────────────────
-
 @router.get("/me")
 async def get_my_faculty_profile(
     current_user: User = Depends(get_current_user),
@@ -109,7 +104,7 @@ async def get_faculty_assignments(
 @router.get("/", response_model=FacultyListOut)
 async def list_faculty(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     department_id: int | None = Query(None),
     employment_status: str | None = Query(None),
     faculty_rank: str | None = Query(None),
@@ -262,7 +257,8 @@ async def update_faculty(faculty_id: UUID, data: FacultyUpdate, db: AsyncSession
 
 @router.delete("/{faculty_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_faculty(faculty_id: UUID, db: AsyncSession = Depends(get_db)):
-    """Delete a faculty member."""
+    """Delete a faculty profile and rely on database cascade rules."""
+
     result = await db.execute(select(Faculty).where(Faculty.faculty_id == faculty_id))
     faculty = result.scalar_one_or_none()
     if not faculty:
@@ -277,7 +273,7 @@ async def delete_faculty(faculty_id: UUID, db: AsyncSession = Depends(get_db)):
 async def get_faculty_sections(
     faculty_id: UUID,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     term_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):

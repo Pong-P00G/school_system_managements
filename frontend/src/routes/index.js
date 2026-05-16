@@ -24,6 +24,10 @@ import Login from '../views/auth/Login.vue'
 import Register from '../views/auth/Register.vue'
 import Unauthorized from '../views/Unauthorized.vue'
 import NotFound from '../views/NotFound.vue'
+import Notifications from '../views/Notifications.vue'
+import StudentAttendance from '../views/student/Attendance.vue'
+import Roles from '../views/admin/Roles.vue'
+import TeacherAttendance from '../views/teacher/Attendance.vue'
 import { useAuthStore } from '../stores/auth'
 
 
@@ -143,6 +147,24 @@ const routes = [
         component: () => import('../views/admin/ProgramFees.vue'), 
         meta: { title: 'Program Fees' } 
       },
+      { 
+        path: 'notifications', 
+        name: 'Notifications', 
+        component: Notifications, 
+        meta: { title: 'Notifications' } 
+      },
+      { 
+        path: 'attendance', 
+        name: 'Attendance', 
+        component: () => import('../views/teacher/Attendance.vue'), 
+        meta: { title: 'Attendance' } 
+      },
+      { 
+        path: 'roles', 
+        name: 'Roles', 
+        component: Roles, 
+        meta: { title: 'Role Management' } 
+      },
     ]
   },
 
@@ -181,6 +203,18 @@ const routes = [
         component: StudentSchedule, 
         meta: { title: 'My Schedule' } 
       },
+      { 
+        path: 'notifications', 
+        name: 'StudentNotifications', 
+        component: Notifications, 
+        meta: { title: 'Notifications' } 
+      },
+      { 
+        path: 'attendance', 
+        name: 'StudentAttendance', 
+        component: StudentAttendance, 
+        meta: { title: 'My Attendance' } 
+      },
     ]
   },
 
@@ -218,6 +252,18 @@ const routes = [
         name: 'TeacherEnrollment', 
         component: () => import('../views/teacher/Enrollment.vue'), 
         meta: { title: 'Class Management' } 
+      },
+      { 
+        path: 'attendance', 
+        name: 'TeacherAttendance', 
+        component: TeacherAttendance, 
+        meta: { title: 'Attendance' } 
+      },
+      { 
+        path: 'notifications', 
+        name: 'TeacherNotifications', 
+        component: Notifications, 
+        meta: { title: 'Notifications' } 
       },
     ]
   },

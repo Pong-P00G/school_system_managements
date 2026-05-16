@@ -13,8 +13,8 @@ from typing import Any
 
 
 def _short() -> str:
-    """Return a short 4-char hex string for use in unique identifiers."""
-    return uuid.uuid4().hex[:4]
+    """Return a short hex string for use in unique identifiers."""
+    return uuid.uuid4().hex[:8]
 
 
 # ---------------------------------------------------------------------------
@@ -148,8 +148,8 @@ async def create_faculty(
         "department_id": department_id,
         "hire_date": "2025-01-15",
         "faculty_rank": "Assistant Professor",
-        "tenure_status": "tenure_track",
-        "employment_type": "full_time",
+        "tenure_status": "tenure-track",
+        "employment_type": "full-time",
         "employment_status": "active",
     }
     payload.update(overrides)
@@ -167,8 +167,8 @@ async def create_staff(
         "employee_number": f"en{_short()}",
         "hire_date": "2025-01-15",
         "job_title": "Administrative Assistant",
-        "job_category": "Administrative",
-        "employment_type": "full_time",
+        "job_category": "administrative",
+        "employment_type": "full-time",
         "employment_status": "active",
     }
     payload.update(overrides)

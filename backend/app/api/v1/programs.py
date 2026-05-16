@@ -1,8 +1,6 @@
-"""Program management endpoints with full CRUD operations."""
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import or_, select, func
 from app.core.database import get_db
 from app.models.academic import Program, Department
 from app.models.people import Student
@@ -16,7 +14,7 @@ router = APIRouter()
 @router.get("/", response_model=ProgramListOut)
 async def list_programs(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     department_id: int | None = Query(None),
     degree_level: str | None = Query(None),
     search: str | None = Query(None),
@@ -115,14 +113,15 @@ async def update_program(program_id: int, data: ProgramUpdate, db: AsyncSession 
 
     # Check for conflicts if updating code or name
     if "program_code" in update_data or "program_name" in update_data:
+        conditions = []
+        if "program_code" in update_data:
+            conditions.append(Program.program_code == update_data["program_code"])
+        if "program_name" in update_data:
+            conditions.append(Program.program_name == update_data["program_name"])
         existing = await db.execute(
             select(Program).where(
                 Program.program_id != program_id,
-                (
-                    Program.program_code == update_data.get("program_code", "") if "program_code" in update_data else False
-                ) | (
-                    Program.program_name == update_data.get("program_name", "") if "program_name" in update_data else False
-                )
+                or_(*conditions),
             )
         )
         if existing.scalar_one_or_none():
@@ -153,25 +152,13 @@ async def update_program(program_id: int, data: ProgramUpdate, db: AsyncSession 
 @router.delete("/{program_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_program(
     program_id: int,
-    force: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a program (hard delete)."""
+    """Delete a program and rely on database cascade rules."""
     result = await db.execute(select(Program).where(Program.program_id == program_id))
     program = result.scalar_one_or_none()
     if not program:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Program not found")
-
-    if not force:
-        # Check for dependent records
-        student_count = await db.scalar(
-            select(func.count(Student.student_id)).where(Student.program_id == program_id)
-        )
-        if student_count:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete program: {student_count} student(s) are still enrolled in this program. Reassign them first."
-            )
 
     await db.delete(program)
     await db.flush()
@@ -182,10 +169,9 @@ async def delete_program(
 async def get_program_students(
     program_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all students enrolled in a program."""
     from app.models.people import Student
     from app.schemas.people import StudentListOut, StudentOut
 

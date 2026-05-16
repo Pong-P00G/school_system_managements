@@ -1,0 +1,8 @@
+workspace:
+  id: 02227d02-bc12-499e-85c4-8ec777ed276b
+localResources:
+  collections:
+    - ../postman/collections/school system management
+cloudResources:
+  collections:
+    ../postman/collections/school system management: 42826875-c39ccb8c-8e95-4847-a548-b12a6cc29b28

@@ -1,14 +1,13 @@
-"""FastAPI application entry point."""
-
 import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import get_settings
 from app.core.database import async_session
@@ -26,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan events with DB readiness check."""
     logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
     # Verify database connectivity at startup
     try:
@@ -48,10 +46,28 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+# Global exception handler for database integrity errors
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, exc: IntegrityError):
+    logger.warning(
+        "IntegrityError on %s %s: %s",
+        request.method,
+        request.url.path,
+        str(exc),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={
+            "detail": "A database constraint was violated. The record may already exist.",
+            "error_type": "IntegrityError",
+        },
+    )
+
+
 # Request logging middleware (register first so CORS wraps it as outermost)
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Log every request with duration, status, and capture exceptions."""
     request_id = str(uuid.uuid4())[:8]
     start = time.perf_counter()
     try:
@@ -115,7 +131,6 @@ app.include_router(api_router)
 
 @app.get("/")
 async def root():
-    """Root endpoint redirecting to docs."""
     return {
         "message": f"Welcome to {settings.APP_NAME}",
         "version": settings.APP_VERSION,

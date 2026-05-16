@@ -16,32 +16,16 @@
         Are you sure you want to delete <strong>{{ itemName }}</strong>?
       </p>
 
-      <div v-if="loading" class="delete-dialog-loading">
-        <span class="spinner"></span> Checking dependencies...
-      </div>
-
-      <div v-else-if="dependencies.length > 0" class="delete-dialog-deps">
-        <p class="delete-dialog-deps-title">This item cannot be deleted because it has {{ dependencies.length }} dependent record(s):</p>
-        <ul>
-          <li v-for="(dep, i) in dependencies" :key="i">{{ dep }}</li>
-        </ul>
-        <p class="delete-dialog-deps-hint">Resolve the dependencies above before attempting deletion.</p>
-      </div>
+      <p class="delete-dialog-warning" v-if="warning">
+        {{ warning }}
+      </p>
 
       <div class="delete-dialog-actions">
         <button class="admin-btn-cancel" @click="$emit('cancel')" :disabled="deleting">Cancel</button>
         <button
-          v-if="dependencies.length > 0 && !loading"
-          class="admin-btn-force-delete"
-          @click="$emit('forceConfirm')"
-          :disabled="deleting"
-        >
-          {{ deleting ? 'Deleting...' : 'Delete Anyway' }}
-        </button>
-        <button
           class="admin-btn-delete"
           @click="$emit('confirm')"
-          :disabled="deleting || loading || dependencies.length > 0"
+          :disabled="deleting"
         >
           {{ deleting ? 'Deleting...' : 'Delete' }}
         </button>
@@ -51,24 +35,15 @@
 </template>
 
 <script setup>
-import { watch } from 'vue'
-
 const props = defineProps({
   show: { type: Boolean, default: false },
   title: { type: String, default: 'Confirm Delete' },
   itemName: { type: String, default: '' },
-  dependencies: { type: Array, default: () => [] },
-  loading: { type: Boolean, default: false },
   deleting: { type: Boolean, default: false },
+  warning: { type: String, default: 'This action cannot be undone. All associated data will also be permanently deleted.' },
 })
 
-const emit = defineEmits(['confirm', 'cancel', 'forceConfirm'])
-
-watch(() => props.loading, (newVal, oldVal) => {
-  if (oldVal === true && newVal === false && props.dependencies.length === 0) {
-    emit('confirm')
-  }
-})
+const emit = defineEmits(['confirm', 'cancel'])
 </script>
 
 <style scoped>
@@ -99,66 +74,19 @@ watch(() => props.loading, (newVal, oldVal) => {
 .delete-dialog-msg {
   color: var(--color-ink-muted, #6b7280);
   font-size: 0.9rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   line-height: 1.5;
 }
 
-.delete-dialog-loading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  background: var(--color-bg-secondary, #f9fafb);
-  border-radius: 0.5rem;
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
-  color: var(--color-ink-muted, #6b7280);
-}
-
-.spinner {
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid var(--color-border, #e5e7eb);
-  border-top-color: var(--color-primary, #6366f1);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.delete-dialog-deps {
+.delete-dialog-warning {
   padding: 0.75rem;
   background: #fef2f2;
   border: 1px solid #fecaca;
   border-radius: 0.5rem;
   margin-bottom: 1rem;
-}
-
-.delete-dialog-deps-title {
   font-size: 0.85rem;
-  font-weight: 600;
   color: #991b1b;
-  margin-bottom: 0.4rem;
-}
-
-.delete-dialog-deps ul {
-  margin: 0;
-  padding-left: 1.25rem;
-  font-size: 0.85rem;
-  color: #b91c1c;
-}
-
-.delete-dialog-deps li {
-  margin-bottom: 0.2rem;
-}
-
-.delete-dialog-deps-hint {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  color: #991b1b;
-  font-style: italic;
+  line-height: 1.4;
 }
 
 .delete-dialog-actions {
@@ -186,27 +114,6 @@ watch(() => props.loading, (newVal, oldVal) => {
 }
 
 .admin-btn-delete:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.admin-btn-force-delete {
-  padding: 0.5rem 1rem;
-  background: #f97316;
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm, 0.375rem);
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.admin-btn-force-delete:hover:not(:disabled) {
-  background: #ea580c;
-}
-
-.admin-btn-force-delete:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

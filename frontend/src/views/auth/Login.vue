@@ -11,13 +11,6 @@ const password = ref('')
 const error = ref('')
 const loading = ref(false)
 
-const detectRoleFromUsername = (value) => {
-  const key = (value || '').toLowerCase()
-  if (key.includes('student')) return 'student'
-  if (key.includes('teacher') || key.includes('faculty')) return 'teacher'
-  return 'admin'
-}
-
 const handleLogin = async () => {
   loading.value = true
   error.value = ''
@@ -25,12 +18,7 @@ const handleLogin = async () => {
   try {
     const success = await authStore.login(username.value, password.value)
     if (success) {
-      // Determine role from store, or fallback to username detection for demo/legacy support
-      const role = authStore.userRole || detectRoleFromUsername(username.value)
-
-      // If the store didn't have the role, we should probably update it in local state 
-      // to match what the router expects, although router will read from store/localStorage.
-      // For now, rely on what we have.
+      const role = authStore.userRole
 
       if (role === 'student') {
         router.push('/student/dashboard')
@@ -78,11 +66,6 @@ const handleLogin = async () => {
           {{ loading ? 'Signing in...' : 'Sign In' }}
         </button>
       </form>
-
-      <div class="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-        <p class="font-semibold text-slate-700">Demo account</p>
-        <p>admin / Admin@123</p>
-      </div>
 
       <p class="mt-5 text-sm text-slate-600">
         New here?

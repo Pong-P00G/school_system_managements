@@ -90,16 +90,16 @@ async def test_update_course(client):
 
 @pytest.mark.asyncio
 async def test_delete_course_soft(client):
-    """Delete (soft delete) a course by setting is_active=False."""
+    """Delete a course (hard delete)."""
     dept = await create_department(client, f"cd_{BASE_SUFFIX}")
     course = await create_course(client, f"cd_{BASE_SUFFIX}", dept["department_id"])
 
     resp = await client.delete(f"/api/v1/courses/{course['course_id']}")
     assert resp.status_code == 204
 
-    # Verify it's soft-deleted
+    # Verify it's actually deleted
     get_resp = await client.get(f"/api/v1/courses/{course['course_id']}")
-    assert get_resp.json()["is_active"] is False
+    assert get_resp.status_code == 404
 
 
 @pytest.mark.asyncio

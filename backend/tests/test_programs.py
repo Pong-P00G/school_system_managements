@@ -72,24 +72,25 @@ async def test_update_program(client):
     """Update a program."""
     dept = await create_department(client, f"pu_{BASE_SUFFIX}")
     prog = await create_program(client, f"pu_{BASE_SUFFIX}", dept["department_id"])
+    new_name = f"Updated Program {BASE_SUFFIX}"
     resp = await client.put(
         f"/api/v1/programs/{prog['program_id']}",
-        json={"program_name": "Updated Program"},
+        json={"program_name": new_name},
     )
     assert resp.status_code == 200
-    assert resp.json()["program_name"] == "Updated Program"
+    assert resp.json()["program_name"] == new_name
 
 
 @pytest.mark.asyncio
 async def test_delete_program_soft(client):
-    """Delete (soft delete) a program."""
+    """Delete a program."""
     dept = await create_department(client, f"pd_{BASE_SUFFIX}")
     prog = await create_program(client, f"pd_{BASE_SUFFIX}", dept["department_id"])
     resp = await client.delete(f"/api/v1/programs/{prog['program_id']}")
     assert resp.status_code == 204
 
     get_resp = await client.get(f"/api/v1/programs/{prog['program_id']}")
-    assert get_resp.json()["is_active"] is False
+    assert get_resp.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -166,13 +167,22 @@ async def test_pagination(client):
 
 
 @pytest.mark.asyncio
-async def test_delete_program_with_students_returns_409(client):
-    """Deleting a program that still has enrolled students returns 409."""
+async def test_delete_program_with_students_cascades(client):
+    """Deleting a program should cascade to its students."""
     dept = await create_department(client, f"ps409_{BASE_SUFFIX}")
     prog = await create_program(client, f"ps409_{BASE_SUFFIX}", dept["department_id"])
     user = await register_user(client, f"ps409_{BASE_SUFFIX}")
-    await create_student(client, f"ps409_{BASE_SUFFIX}", user["user_id"], prog["program_id"])
+    student = await create_student(client, f"ps409_{BASE_SUFFIX}", user["user_id"], prog["program_id"])
 
     resp = await client.delete(f"/api/v1/programs/{prog['program_id']}")
-    assert resp.status_code == 409
-    assert "student(s)" in resp.json()["detail"].lower()
+    assert resp.status_code == 204
+
+    resp = await client.get(f"/api/v1/students/{student['student_id']}")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_program_not_found(client):
+    """Deleting a non-existent program returns 404."""
+    resp = await client.delete("/api/v1/programs/99999999")
+    assert resp.status_code == 404

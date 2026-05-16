@@ -21,11 +21,23 @@ const currentPage = ref(1)
 const pageSize = 100
 const searchQuery = ref('')
 
+const selectedIds = ref(new Set())
+const selectAll = () => {
+  if (selectedIds.value.size === users.value.length) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(users.value.map(u => u.user_id))
+  }
+}
+const toggleSelect = (id) => {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id); else next.add(id)
+  selectedIds.value = next
+}
+
 const showDeleteDialog = ref(false)
 const deletingUserId = ref(null)
 const deleteUserName = ref('')
-const deleteDependencies = ref([])
-const checkingDeps = ref(false)
 const deleting = ref(false)
 
 const defaultForm = () => ({ username: '', email: '', password: '', role_id: null, is_active: true, is_verified: false })
@@ -42,11 +54,13 @@ const loadUsers = async () => {
 }
 
 const goToPage = (page) => {
+  selectedIds.value = new Set()
   currentPage.value = page
   loadUsers()
 }
 
 const onSearch = (val) => {
+  selectedIds.value = new Set()
   searchQuery.value = val
   currentPage.value = 1
   loadUsers()
@@ -92,16 +106,10 @@ const saveUser = async () => {
   finally { saving.value = false }
 }
 
-const confirmDeleteUser = async (userId, username) => {
+const confirmDeleteUser = (userId, username) => {
   deletingUserId.value = userId
   deleteUserName.value = username
-  deleteDependencies.value = []
-  checkingDeps.value = true
   showDeleteDialog.value = true
-
-  setTimeout(() => {
-    checkingDeps.value = false
-  }, 200)
 }
 
 const executeDeleteUser = async () => {
@@ -120,22 +128,33 @@ const executeDeleteUser = async () => {
   }
 }
 
-const forceDeleteUser = async () => {
-  deleting.value = true
-  try {
-    await deleteUser(deletingUserId.value, { force: true })
-    showDeleteDialog.value = false
-    currentPage.value = 1
-    await loadUsers()
-    toast.success('User force-deleted successfully')
-  } catch (err) {
-    toast.error(getApiError(err, 'Failed to delete user'))
-    showDeleteDialog.value = false
-  } finally {
-    deleting.value = false
-  }
-}
 
+const bulkDeleting = ref(false)
+const showBulkDeleteDialog = ref(false)
+const deleteSelectedUsers = async () => {
+  bulkDeleting.value = true
+  showBulkDeleteDialog.value = false
+  const ids = [...selectedIds.value]
+  let successCount = 0
+  let failCount = 0
+  for (const id of ids) {
+    try {
+      await deleteUser(id)
+      successCount++
+    } catch {
+      failCount++
+    }
+  }
+  selectedIds.value = new Set()
+  currentPage.value = 1
+  await loadUsers()
+  if (failCount > 0) {
+    toast.warning(`Deleted ${successCount} user(s), ${failCount} failed`)
+  } else {
+    toast.success(`Deleted ${successCount} user(s)`)
+  }
+  bulkDeleting.value = false
+}
 onMounted(loadUsers)
 </script>
 
@@ -154,9 +173,18 @@ onMounted(loadUsers)
         <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search users..." />
       </div>
       <div class="admin-record-count">{{ total }} user(s)</div>
+      <div v-if="selectedIds.size > 0" class="admin-bulk-actions">
+        <span class="bulk-count">{{ selectedIds.size }} selected</span>
+        <button class="admin-btn-delete-selected" :disabled="bulkDeleting" @click="showBulkDeleteDialog = true">
+          {{ bulkDeleting ? 'Deleting...' : 'Delete Selected' }}
+        </button>
+      </div>
       <table class="admin-table">
         <thead>
           <tr>
+            <th class="th-checkbox">
+              <input type="checkbox" :checked="users.length > 0 && selectedIds.size === users.length" @change="selectAll" />
+            </th>
             <th>Username</th>
             <th>Email</th>
             <th>Role</th>
@@ -166,7 +194,10 @@ onMounted(loadUsers)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in users" :key="user.user_id">
+          <tr v-for="user in users" :key="user.user_id" :class="{ 'row-selected': selectedIds.has(user.user_id) }">
+            <td class="td-checkbox">
+              <input type="checkbox" :checked="selectedIds.has(user.user_id)" @change="toggleSelect(user.user_id)" />
+            </td>
             <td class="cell-primary">{{ user.username }}</td>
             <td>{{ user.email }}</td>
             <td>{{ user.roles && user.roles.length > 0 ? user.roles[0].role?.role_name : 'None' }}</td>
@@ -222,12 +253,69 @@ onMounted(loadUsers)
       :show="showDeleteDialog"
       title="Delete User"
       :item-name="deleteUserName"
-      :dependencies="deleteDependencies"
-      :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteUser"
-      @forceConfirm="forceDeleteUser"
       @cancel="showDeleteDialog = false"
     />
+
+    <div v-if="showBulkDeleteDialog" class="admin-modal-overlay" @click.self="showBulkDeleteDialog = false">
+      <div class="admin-modal admin-modal-sm">
+        <h2>Delete {{ selectedIds.size }} User(s)</h2>
+        <p class="text-ink-muted mb-4">Are you sure you want to delete {{ selectedIds.size }} selected user(s)? This action cannot be undone. All associated data will also be permanently deleted.</p>
+        <div class="admin-form-actions">
+          <button type="button" class="admin-btn-cancel" @click="showBulkDeleteDialog = false">Cancel</button>
+          <button :disabled="bulkDeleting" class="admin-btn-delete-selected" @click="deleteSelectedUsers">
+            {{ bulkDeleting ? 'Deleting...' : 'Delete All' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.th-checkbox, .td-checkbox {
+  width: 40px;
+  text-align: center;
+  vertical-align: middle;
+}
+.th-checkbox input, .td-checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.row-selected {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+.admin-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #fef2f2;
+  border-bottom: 1px solid #fecaca;
+}
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+.admin-btn-delete-selected {
+  padding: 6px 16px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-btn-delete-selected:hover:not(:disabled) {
+  background: #b91c1c;
+}
+.admin-btn-delete-selected:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+</style>

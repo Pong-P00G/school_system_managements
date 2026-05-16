@@ -1,14 +1,16 @@
 from uuid import UUID
 import secrets, string
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.academic import CourseSection, Course, AcademicTerm, Room
-from app.models.people import Enrollment
+from app.models.people import Enrollment, Assignment, Attendance
 from app.models.user import User
+from app.services.notification_service import notify_enrollment_created
 from app.schemas.academic import (
     CourseSectionOut, CourseSectionListOut, CourseSectionCreate, CourseSectionUpdate
 )
@@ -19,7 +21,7 @@ router = APIRouter()
 @router.get("/", response_model=CourseSectionListOut)
 async def list_sections(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     course_id: int | None = Query(None),
     term_id: int | None = Query(None),
     instructor_id: UUID | None = Query(None),
@@ -196,29 +198,13 @@ async def update_section(section_id: int, data: CourseSectionUpdate, db: AsyncSe
 @router.delete("/{section_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_section(
     section_id: int,
-    force: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a course section."""
+    """Delete a course section and rely on database cascade rules."""
     result = await db.execute(select(CourseSection).where(CourseSection.section_id == section_id))
     section = result.scalar_one_or_none()
     if not section:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course section not found")
-
-    if not force:
-        # Check for dependent records
-        enrollment_count = await db.scalar(
-            select(func.count(Enrollment.enrollment_id)).where(Enrollment.section_id == section_id)
-        )
-        if enrollment_count:
-            detail = (
-                f"Cannot delete section: {enrollment_count} student(s) are enrolled."
-                " Unenroll them first."
-            )
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=detail,
-            )
 
     await db.delete(section)
     await db.flush()
@@ -229,7 +215,7 @@ async def delete_section(
 async def get_section_enrollments(
     section_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     search: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
@@ -295,7 +281,7 @@ async def get_section_enrollments(
 async def get_section_assignments(
     section_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all assignments for a course section."""
@@ -328,7 +314,11 @@ async def enroll_student_manually(
     from app.models.people import Enrollment, Student
     
     # Verify section exists
-    section_result = await db.execute(select(CourseSection).where(CourseSection.section_id == section_id))
+    section_result = await db.execute(
+        select(CourseSection)
+        .options(selectinload(CourseSection.course))
+        .where(CourseSection.section_id == section_id)
+    )
     section = section_result.scalar_one_or_none()
     if not section:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course section not found")
@@ -349,19 +339,29 @@ async def enroll_student_manually(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Student is already enrolled in this section")
 
+    # Check capacity
+    if section.enrolled_count >= section.max_capacity:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Course section is full"
+        )
+
+    course_name = section.course.course_name if section.course else None
+
     # Enroll
     enrollment = Enrollment(
         section_id=section_id,
         student_id=student_id,
         enrollment_status="enrolled",
-        enrollment_date=datetime.utcnow().date()
+        enrollment_date=datetime.now(timezone.utc).date()
     )
     db.add(enrollment)
     
-    # Update enrolled count
-    section.enrolled_count += 1
-    
     await db.commit()
+
+    # Trigger: notify student about enrollment
+    await notify_enrollment_created(db, student_id, section_id, course_name)
+
     return {"message": "Student enrolled successfully", "enrollment_id": enrollment.enrollment_id}
 
 
@@ -404,20 +404,25 @@ async def join_section_by_code(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You are already enrolled in this class.")
 
+    course_name = section.course.course_name if section.course else None
+
     # Enroll
     enrollment = Enrollment(
         section_id=section.section_id,
         student_id=student_id,
         enrollment_status="enrolled",
-        enrollment_date=datetime.utcnow().date()
+        enrollment_date=datetime.now(timezone.utc).date()
     )
     db.add(enrollment)
-    section.enrolled_count += 1
+    
     await db.commit()
+
+    # Trigger: notify student about enrollment
+    await notify_enrollment_created(db, student_id, section.section_id, course_name)
 
     return {
         "message": "Successfully joined the class!",
         "enrollment_id": enrollment.enrollment_id,
-        "course_name": section.course.course_name if section.course else None,
+        "course_name": course_name,
         "section_number": section.section_number
     }

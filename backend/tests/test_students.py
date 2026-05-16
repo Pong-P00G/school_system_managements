@@ -129,7 +129,7 @@ async def test_create_student_duplicate_number(client):
 async def test_get_student_enrollments(client):
     """Get enrollments for a student."""
     graph = await _setup_student_graph(client, f"se_{BASE_SUFFIX}")
-    dept = await create_department(client, f"se_{BASE_SUFFIX}_d")
+    dept = await create_department(client, f"se_{BASE_SUFFIX}_de")
     course = await create_course(client, f"se_{BASE_SUFFIX}_c", dept["department_id"])
     term = await create_term(client, f"se_{BASE_SUFFIX}_t")
     section = await create_section(client, f"se_{BASE_SUFFIX}_s", course["course_id"], term["term_id"])
@@ -163,7 +163,7 @@ async def test_pagination(client):
 async def test_delete_student_with_enrollments_returns_409(client):
     """Deleting a student that still has enrollments returns 409."""
     graph = await _setup_student_graph(client, f"se409_{BASE_SUFFIX}")
-    dept = await create_department(client, f"se409_{BASE_SUFFIX}_d")
+    dept = await create_department(client, f"se409_{BASE_SUFFIX}_de")
     course = await create_course(client, f"se409_{BASE_SUFFIX}_c", dept["department_id"])
     term = await create_term(client, f"se409_{BASE_SUFFIX}_t")
     section = await create_section(client, f"se409_{BASE_SUFFIX}_s", course["course_id"], term["term_id"])

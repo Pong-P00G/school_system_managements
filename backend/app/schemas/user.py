@@ -19,7 +19,7 @@ class TokenResponse(BaseModel):
 # --- User schemas ---
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
-    email: str = Field(..., max_length=255)
+    email: EmailStr = Field(..., max_length=255)
 
 
 class UserCreate(UserBase):
@@ -60,6 +60,16 @@ class UserPersonalInfoOut(UserPersonalInfoBase):
     nationality: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class RoleCreate(BaseModel):
+    role_name: str = Field(..., min_length=1, max_length=50)
+    description: str | None = None
+
+
+class RoleUpdate(BaseModel):
+    role_name: str | None = Field(None, min_length=1, max_length=50)
+    description: str | None = None
 
 
 class UserRoleOut(BaseModel):

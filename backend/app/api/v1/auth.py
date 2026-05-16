@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, get_password_hash
 from app.models.user import User
@@ -53,6 +54,13 @@ async def register(request: UserCreate, db: AsyncSession = Depends(get_db)):
         password_hash=get_password_hash(request.password),
     )
     db.add(user)
-    await db.flush()
-    await db.refresh(user)
+    try:
+        await db.flush()
+        await db.refresh(user)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username or email already registered",
+        )
     return user

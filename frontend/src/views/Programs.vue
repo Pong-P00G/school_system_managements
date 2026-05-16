@@ -21,11 +21,23 @@ const currentPage = ref(1)
 const pageSize = 100
 const searchQuery = ref('')
 
+const selectedIds = ref(new Set())
+const selectAll = () => {
+  if (selectedIds.value.size === programs.value.length) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(programs.value.map(p => p.program_id))
+  }
+}
+const toggleSelect = (id) => {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id); else next.add(id)
+  selectedIds.value = next
+}
+
 const showDeleteDialog = ref(false)
 const deletingProgramId = ref(null)
 const deleteProgramName = ref('')
-const deleteDependencies = ref([])
-const checkingDeps = ref(false)
 const deleting = ref(false)
 
 const defaultForm = () => ({
@@ -61,11 +73,13 @@ const loadPrograms = async () => {
 }
 
 const goToPage = (page) => {
+  selectedIds.value = new Set()
   currentPage.value = page
   loadPrograms()
 }
 
 const onSearch = (val) => {
+  selectedIds.value = new Set()
   searchQuery.value = val
   currentPage.value = 1
   loadPrograms()
@@ -131,24 +145,10 @@ const saveProgram = async () => {
   }
 }
 
-const confirmDeleteProgram = async (programId, programName) => {
+const confirmDeleteProgram = (programId, programName) => {
   deletingProgramId.value = programId
   deleteProgramName.value = programName
-  deleteDependencies.value = []
-  checkingDeps.value = true
   showDeleteDialog.value = true
-
-  try {
-    const res = await getProgramStudents(programId)
-    const students = res.data?.students || []
-    if (students.length > 0) {
-      deleteDependencies.value = [`${students.length} student(s) are enrolled in this program`]
-    }
-  } catch (err) {
-    console.warn('Failed to check dependencies', err)
-  } finally {
-    checkingDeps.value = false
-  }
 }
 
 const executeDeleteProgram = async () => {
@@ -167,20 +167,32 @@ const executeDeleteProgram = async () => {
   }
 }
 
-const forceDeleteProgram = async () => {
-  deleting.value = true
-  try {
-    await deleteProgram(deletingProgramId.value, { force: true })
-    showDeleteDialog.value = false
-    currentPage.value = 1
-    await loadPrograms()
-    toast.success('Program force-deleted successfully')
-  } catch (err) {
-    toast.error(getApiError(err, 'Failed to delete program'))
-    showDeleteDialog.value = false
-  } finally {
-    deleting.value = false
+
+const bulkDeleting = ref(false)
+const showBulkDeleteDialog = ref(false)
+const deleteSelectedPrograms = async () => {
+  bulkDeleting.value = true
+  showBulkDeleteDialog.value = false
+  const ids = [...selectedIds.value]
+  let successCount = 0
+  let failCount = 0
+  for (const id of ids) {
+    try {
+      await deleteProgram(id)
+      successCount++
+    } catch {
+      failCount++
+    }
   }
+  selectedIds.value = new Set()
+  currentPage.value = 1
+  await loadPrograms()
+  if (failCount > 0) {
+    toast.warning(`Deleted ${successCount} program(s), ${failCount} failed`)
+  } else {
+    toast.success(`Deleted ${successCount} program(s)`)
+  }
+  bulkDeleting.value = false
 }
 
 const departmentNameById = (departmentId) => {
@@ -206,9 +218,18 @@ onMounted(loadPrograms)
         <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search programs..." />
       </div>
       <div class="admin-record-count">{{ total }} program(s)</div>
+      <div v-if="selectedIds.size > 0" class="admin-bulk-actions">
+        <span class="bulk-count">{{ selectedIds.size }} selected</span>
+        <button class="admin-btn-delete-selected" :disabled="bulkDeleting" @click="showBulkDeleteDialog = true">
+          {{ bulkDeleting ? 'Deleting...' : 'Delete Selected' }}
+        </button>
+      </div>
       <table class="admin-table">
         <thead>
           <tr>
+            <th class="th-checkbox">
+              <input type="checkbox" :checked="programs.length > 0 && selectedIds.size === programs.length" @change="selectAll" />
+            </th>
             <th>Code</th>
             <th>Name</th>
             <th>Department</th>
@@ -218,7 +239,10 @@ onMounted(loadPrograms)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="program in programs" :key="program.program_id">
+          <tr v-for="program in programs" :key="program.program_id" :class="{ 'row-selected': selectedIds.has(program.program_id) }">
+            <td class="td-checkbox">
+              <input type="checkbox" :checked="selectedIds.has(program.program_id)" @change="toggleSelect(program.program_id)" />
+            </td>
             <td class="cell-primary">{{ program.program_code }}</td>
             <td class="font-medium text-ink">{{ program.program_name }}</td>
             <td>{{ departmentNameById(program.department_id) }}</td>
@@ -288,12 +312,69 @@ onMounted(loadPrograms)
       :show="showDeleteDialog"
       title="Delete Program"
       :item-name="deleteProgramName"
-      :dependencies="deleteDependencies"
-      :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteProgram"
-      @forceConfirm="forceDeleteProgram"
       @cancel="showDeleteDialog = false"
     />
+
+    <div v-if="showBulkDeleteDialog" class="admin-modal-overlay" @click.self="showBulkDeleteDialog = false">
+      <div class="admin-modal admin-modal-sm">
+        <h2>Delete {{ selectedIds.size }} Program(s)</h2>
+        <p class="text-ink-muted mb-4">Are you sure you want to delete {{ selectedIds.size }} selected program(s)? This action cannot be undone. All associated data will also be permanently deleted.</p>
+        <div class="admin-form-actions">
+          <button type="button" class="admin-btn-cancel" @click="showBulkDeleteDialog = false">Cancel</button>
+          <button :disabled="bulkDeleting" class="admin-btn-delete-selected" @click="deleteSelectedPrograms">
+            {{ bulkDeleting ? 'Deleting...' : 'Delete All' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.th-checkbox, .td-checkbox {
+  width: 40px;
+  text-align: center;
+  vertical-align: middle;
+}
+.th-checkbox input, .td-checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.row-selected {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+.admin-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #fef2f2;
+  border-bottom: 1px solid #fecaca;
+}
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+.admin-btn-delete-selected {
+  padding: 6px 16px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-btn-delete-selected:hover:not(:disabled) {
+  background: #b91c1c;
+}
+.admin-btn-delete-selected:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+</style>

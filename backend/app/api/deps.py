@@ -8,19 +8,26 @@ from app.core.security import decode_access_token
 from app.models.user import User, UserRoleAssignment
 from uuid import UUID
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
-    token: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: AsyncSession = Depends(get_db)
 ) -> User:
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    payload = decode_access_token(token.credentials)
+    payload = decode_access_token(credentials.credentials)
     if payload is None:
         raise credentials_exception
         
@@ -50,3 +57,36 @@ async def get_current_user(
         raise HTTPException(status_code=400, detail="Inactive user")
         
     return user
+
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Require the current user to have an admin role."""
+    if not any(
+        ra.role.role_name == "admin"
+        for ra in current_user.role_assignments
+        if ra.is_active
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+    return current_user
+
+
+async def get_current_teacher_or_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Require the current user to have a teacher/faculty or admin role."""
+    allowed = {"admin", "teacher", "faculty"}
+    if not any(
+        ra.role.role_name in allowed
+        for ra in current_user.role_assignments
+        if ra.is_active
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Teacher or admin privileges required",
+        )
+    return current_user

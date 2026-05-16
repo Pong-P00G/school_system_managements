@@ -1,14 +1,12 @@
-"""User management endpoints with full CRUD operations."""
-
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.models.user import User, UserPersonalInfo, UserRoleAssignment, UserRole
-from app.models.people import Attendance, FinancialTransaction, Assignment
 from app.api.deps import get_current_user
 from app.schemas.user import (
     UserOut, UserListOut, UserCreate, UserUpdate, UserPersonalInfoOut, UserRoleOut, UserWithRolesOut
@@ -26,7 +24,7 @@ async def get_my_details(current_user: User = Depends(get_current_user)):
 @router.get("/", response_model=UserListOut)
 async def list_users(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     search: str | None = Query(None),
     is_active: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),
@@ -148,44 +146,25 @@ async def update_user(user_id: UUID, data: UserUpdate, db: AsyncSession = Depend
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: UUID,
-    force: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a user (hard delete)."""
-    result = await db.execute(select(User).where(User.user_id == user_id))
+    """Delete a user and rely on database cascade rules."""
+    result = await db.execute(
+        select(User).where(User.user_id == user_id)
+    )
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    if not force:
-        # Check for dependent records (RESTRICT FK constraints that would block deletion)
-        assignment_count = await db.scalar(
-            select(func.count(Assignment.assignment_id)).where(Assignment.created_by == user_id)
+    try:
+        await db.delete(user)
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete user: existing references in the database prevent deletion.",
         )
-        if assignment_count:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete user: {assignment_count} assignment(s) were created by this user. Reassign them first."
-            )
-        attendance_count = await db.scalar(
-            select(func.count(Attendance.attendance_id)).where(Attendance.recorded_by == user_id)
-        )
-        if attendance_count:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete user: {attendance_count} attendance record(s) were recorded by this user. Reassign them first."
-            )
-        transaction_count = await db.scalar(
-            select(func.count(FinancialTransaction.transaction_id)).where(FinancialTransaction.processed_by == user_id)
-        )
-        if transaction_count:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete user: {transaction_count} financial transaction(s) were processed by this user. Reassign them first."
-            )
-
-    await db.delete(user)
-    await db.flush()
     return None
 
 
@@ -223,24 +202,37 @@ async def update_user_personal_info(
     data: UserPersonalInfoOut, 
     db: AsyncSession = Depends(get_db)
 ):
-    """Update personal info for a user."""
+    """Create or update personal info for a user (upsert)."""
+    # Verify user exists
+    user_result = await db.execute(select(User).where(User.user_id == user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
     result = await db.execute(
         select(UserPersonalInfo).where(UserPersonalInfo.user_id == user_id)
     )
     personal_info = result.scalar_one_or_none()
-    if not personal_info:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Personal info not found"
-        )
-
+    
     update_data = data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(personal_info, key, value)
-
-    await db.flush()
-    await db.refresh(personal_info)
-    return personal_info
+    
+    if personal_info:
+        # Update existing
+        for key, value in update_data.items():
+            setattr(personal_info, key, value)
+        await db.flush()
+        await db.refresh(personal_info)
+        return personal_info
+    else:
+        # Create new
+        personal_info = UserPersonalInfo(
+            user_id=user_id,
+            **update_data
+        )
+        db.add(personal_info)
+        await db.flush()
+        await db.refresh(personal_info)
+        return personal_info
 
 
 @router.post("/{user_id}/roles/{role_id}", status_code=status.HTTP_201_CREATED)

@@ -311,31 +311,13 @@ async def update_student(student_id: UUID, data: StudentUpdate, db: AsyncSession
 @router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_student(
     student_id: UUID,
-    force: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a student profile."""
-    result = await db.execute(
-        select(Student)
-        .options(selectinload(Student.enrollments), selectinload(Student.account))
-        .where(Student.student_id == student_id)
-    )
+    """Delete a student profile and rely on database cascade rules."""
+    result = await db.execute(select(Student).where(Student.student_id == student_id))
     student = result.scalar_one_or_none()
     if not student:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
-
-    if not force:
-        # Check for dependent records
-        if student.enrollments:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete student: {len(student.enrollments)} enrollment(s) exist. Remove them first."
-            )
-        if student.account and student.account.balance and float(student.account.balance) > 0:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete student: account has an outstanding balance of ${float(student.account.balance):.2f}. Settle the account first."
-            )
 
     await db.delete(student)
     await db.flush()
@@ -362,7 +344,18 @@ async def get_student_enrollments(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
-    query = select(Enrollment).where(Enrollment.student_id == student_id).offset(skip).limit(limit)
+    query = (
+        select(Enrollment)
+        .options(
+            selectinload(Enrollment.student),
+            selectinload(Enrollment.section).selectinload(CourseSection.course),
+            selectinload(Enrollment.section).selectinload(CourseSection.term),
+            selectinload(Enrollment.section).selectinload(CourseSection.room),
+        )
+        .where(Enrollment.student_id == student_id)
+        .offset(skip)
+        .limit(limit)
+    )
     enrollments_result = await db.execute(query)
     enrollments = enrollments_result.scalars().all()
 

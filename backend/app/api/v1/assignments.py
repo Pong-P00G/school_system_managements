@@ -13,6 +13,7 @@ from app.schemas.people import (
 )
 from app.api.deps import get_current_user
 from app.models.user import User
+from app.services.notification_service import notify_assignment_created
 
 router = APIRouter()
 
@@ -20,7 +21,7 @@ router = APIRouter()
 @router.get("/", response_model=AssignmentListOut)
 async def list_assignments(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     section_id: int | None = Query(None),
     assignment_type: str | None = Query(None),
     is_published: bool | None = Query(None),
@@ -72,7 +73,9 @@ async def create_new_assignment(
 ):
     """Create a new assignment."""
     # Check if section exists
-    section_result = await db.execute(select(CourseSection).where(CourseSection.section_id == data.section_id))
+    section_result = await db.execute(
+        select(CourseSection).where(CourseSection.section_id == data.section_id)
+    )
     if not section_result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course section not found")
 
@@ -81,6 +84,11 @@ async def create_new_assignment(
     db.add(assignment)
     await db.flush()
     await db.refresh(assignment)
+
+    # Trigger: notify enrolled students about new assignment (if published)
+    if data.is_published:
+        await notify_assignment_created(db, data.section_id, data.assignment_name)
+
     return assignment
 
 
@@ -97,11 +105,18 @@ async def update_existing_assignment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
 
     update_data = data.model_dump(exclude_unset=True)
+    was_published = assignment.is_published
+
     for key, value in update_data.items():
         setattr(assignment, key, value)
 
     await db.flush()
     await db.refresh(assignment)
+
+    # Notify enrolled students if assignment was just published
+    if not was_published and assignment.is_published:
+        await notify_assignment_created(db, assignment.section_id, assignment.assignment_name)
+
     return assignment
 
 

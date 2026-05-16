@@ -7,6 +7,10 @@ import uuid
 import pytest
 
 from .helpers import (
+    create_course,
+    create_department,
+    create_section,
+    create_term,
     login_user,
     register_user,
     _short,
@@ -85,13 +89,13 @@ async def test_update_user(client):
 
 @pytest.mark.asyncio
 async def test_delete_user_soft(client):
-    """Delete (soft delete) a user."""
+    """Delete a user."""
     user = await register_user(client, f"ud_{BASE_SUFFIX}")
     resp = await client.delete(f"/api/v1/users/{user['user_id']}")
     assert resp.status_code == 204
 
     get_resp = await client.get(f"/api/v1/users/{user['user_id']}")
-    assert get_resp.json()["is_active"] is False
+    assert get_resp.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -192,21 +196,38 @@ async def test_pagination(client):
 
 
 @pytest.mark.asyncio
-async def test_delete_user_with_created_assignments_returns_409(client):
-    """Deleting a user who created assignments is blocked with 409."""
+async def test_delete_user_with_created_assignments_cascades(client):
+    """Deleting a user should cascade to assignments they created."""
     user = await register_user(client, f"ua409_{BASE_SUFFIX}")
     token = await login_user(client, user["username"])
     headers = {"Authorization": f"Bearer {token['access_token']}"}
 
-    # Create a minimal assignment record tied to this user
     # First set up academic graph
     dept = await create_department(client, f"ua409_{BASE_SUFFIX}_d")
     course = await create_course(client, f"ua409_{BASE_SUFFIX}_c", dept["department_id"])
-    term = await create_term(client, f"ua409_{BASE_SUFFIX}_t", suffix="ua409_term")
+    term = await create_term(client, f"ua409_{BASE_SUFFIX}_t")
     section = await create_section(client, f"ua409_{BASE_SUFFIX}_s", course["course_id"], term["term_id"])
 
-    assert section["section_id"] is not None
+    # Create an actual assignment record tied to this user
+    import uuid
+    resp = await client.post(
+        "/api/v1/assignments/",
+        json={
+            "section_id": section["section_id"],
+            "assignment_name": f"Assignment {uuid.uuid4().hex[:4]}",
+            "description": "Assignment description",
+            "max_points": 100,
+            "weight_percentage": 10.0,
+            "due_date": "2025-06-01T23:59:59",
+            "assignment_type": "homework",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, f"Create assignment failed: {resp.text}"
+    assignment_id = resp.json()["assignment_id"]
 
     resp = await client.delete(f"/api/v1/users/{user['user_id']}")
-    assert resp.status_code == 409
-    assert "dependent" in resp.json()["detail"].lower() or "assigned" in resp.json()["detail"].lower() or "associated" in resp.json()["detail"].lower()
+    assert resp.status_code == 204
+
+    resp = await client.get(f"/api/v1/assignments/{assignment_id}")
+    assert resp.status_code == 404

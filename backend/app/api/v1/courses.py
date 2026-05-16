@@ -16,7 +16,7 @@ router = APIRouter()
 @router.get("/", response_model=CourseListOut)
 async def list_courses(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     department_id: int | None = Query(None),
     search: str | None = Query(None),
     is_active: bool | None = Query(None),
@@ -93,7 +93,10 @@ async def create_course(data: CourseCreate, db: AsyncSession = Depends(get_db)):
             detail="Department not found",
         )
 
-    course = Course(**data.model_dump())
+    course_data = data.model_dump()
+    if course_data.get('course_level') is None:
+        course_data['course_level'] = 'undergraduate'
+    course = Course(**course_data)
     db.add(course)
     await db.flush()
     await db.refresh(course)
@@ -146,25 +149,13 @@ async def update_course(course_id: int, data: CourseUpdate, db: AsyncSession = D
 @router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_course(
     course_id: int,
-    force: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a course (hard delete)."""
+    """Delete a course and rely on database cascade rules."""
     result = await db.execute(select(Course).where(Course.course_id == course_id))
     course = result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
-
-    if not force:
-        # Check for dependent records
-        section_count = await db.scalar(
-            select(func.count(CourseSection.section_id)).where(CourseSection.course_id == course_id)
-        )
-        if section_count:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete course: {section_count} section(s) are still associated with this course. Delete them first."
-            )
 
     await db.delete(course)
     await db.flush()
@@ -175,7 +166,7 @@ async def delete_course(
 async def get_course_sections(
     course_id: int,
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     term_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
@@ -188,7 +179,10 @@ async def get_course_sections(
     if not course:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
 
-    query = select(CourseSection).where(CourseSection.course_id == course_id)
+    query = select(CourseSection).options(
+        selectinload(CourseSection.term),
+        selectinload(CourseSection.room),
+    ).where(CourseSection.course_id == course_id)
     count_query = select(func.count(CourseSection.section_id)).where(CourseSection.course_id == course_id)
 
     if term_id:

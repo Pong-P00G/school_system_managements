@@ -1,11 +1,12 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { createFaculty, deleteFaculty, getDepartments, getFaculty, getFacultySections, getUsers, updateFaculty } from '../services/api'
+import { createFaculty, deleteFaculty, getDepartments, getFaculty, getUsers, updateFaculty } from '../services/api'
 import { getApiError, pick, toDateInput, toNullableInt, toNullableString } from '../components/utils/crud'
 import { useToast } from '../composables/useToast'
 import Pagination from '../components/Pagination.vue'
 import SearchFilter from '../components/SearchFilter.vue'
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog.vue'
+import { getFacultySections } from '../services/api'
 
 const toast = useToast()
 
@@ -22,11 +23,23 @@ const currentPage = ref(1)
 const pageSize = 100
 const searchQuery = ref('')
 
+const selectedIds = ref(new Set())
+const selectAll = () => {
+  if (selectedIds.value.size === faculty.value.length) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(faculty.value.map(m => m.faculty_id))
+  }
+}
+const toggleSelect = (id) => {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id); else next.add(id)
+  selectedIds.value = next
+}
+
 const showDeleteDialog = ref(false)
 const deletingFacultyId = ref(null)
 const deleteFacultyName = ref('')
-const deleteDependencies = ref([])
-const checkingDeps = ref(false)
 const deleting = ref(false)
 
 const defaultForm = () => ({
@@ -53,11 +66,13 @@ const loadFaculty = async () => {
 }
 
 const goToPage = (page) => {
+  selectedIds.value = new Set()
   currentPage.value = page
   loadFaculty()
 }
 
 const onSearch = (val) => {
+  selectedIds.value = new Set()
   searchQuery.value = val
   currentPage.value = 1
   loadFaculty()
@@ -112,24 +127,10 @@ const saveFaculty = async () => {
   finally { saving.value = false }
 }
 
-const confirmDeleteFaculty = async (facultyId, name) => {
+const confirmDeleteFaculty = (facultyId, name) => {
   deletingFacultyId.value = facultyId
   deleteFacultyName.value = name
-  deleteDependencies.value = []
-  checkingDeps.value = true
   showDeleteDialog.value = true
-
-  try {
-    const res = await getFacultySections(facultyId)
-    const sections = res.data?.sections || []
-    if (sections.length > 0) {
-      deleteDependencies.value = [`${sections.length} section(s) assigned to this faculty member`]
-    }
-  } catch (err) {
-    console.warn('Failed to check dependencies', err)
-  } finally {
-    checkingDeps.value = false
-  }
 }
 
 const executeDeleteFaculty = async () => {
@@ -148,20 +149,32 @@ const executeDeleteFaculty = async () => {
   }
 }
 
-const forceDeleteFaculty = async () => {
-  deleting.value = true
-  try {
-    await deleteFaculty(deletingFacultyId.value, { force: true })
-    showDeleteDialog.value = false
-    currentPage.value = 1
-    await loadFaculty()
-    toast.success('Faculty force-deleted successfully')
-  } catch (err) {
-    toast.error(getApiError(err, 'Failed to delete faculty'))
-    showDeleteDialog.value = false
-  } finally {
-    deleting.value = false
+
+const bulkDeleting = ref(false)
+const showBulkDeleteDialog = ref(false)
+const deleteSelectedFaculty = async () => {
+  bulkDeleting.value = true
+  showBulkDeleteDialog.value = false
+  const ids = [...selectedIds.value]
+  let successCount = 0
+  let failCount = 0
+  for (const id of ids) {
+    try {
+      await deleteFaculty(id)
+      successCount++
+    } catch {
+      failCount++
+    }
   }
+  selectedIds.value = new Set()
+  currentPage.value = 1
+  await loadFaculty()
+  if (failCount > 0) {
+    toast.warning(`Deleted ${successCount} faculty member(s), ${failCount} failed`)
+  } else {
+    toast.success(`Deleted ${successCount} faculty member(s)`)
+  }
+  bulkDeleting.value = false
 }
 
 const departmentNameById = (departmentId) => {
@@ -197,10 +210,19 @@ onMounted(loadFaculty)
         <SearchFilter v-model="searchQuery" @search="onSearch" placeholder="Search faculty..." />
       </div>
       <div class="admin-record-count">{{ total }} faculty member(s)</div>
+      <div v-if="selectedIds.size > 0" class="admin-bulk-actions">
+        <span class="bulk-count">{{ selectedIds.size }} selected</span>
+        <button class="admin-btn-delete-selected" :disabled="bulkDeleting" @click="showBulkDeleteDialog = true">
+          {{ bulkDeleting ? 'Deleting...' : 'Delete Selected' }}
+        </button>
+      </div>
       <table class="admin-table">
         <thead>
           <tr>
             <th>Name</th>
+            <th class="th-checkbox">
+              <input type="checkbox" :checked="faculty.length > 0 && selectedIds.size === faculty.length" @change="selectAll" />
+            </th>
             <th>Code</th>
             <th>Department</th>
             <th>Rank</th>
@@ -209,7 +231,10 @@ onMounted(loadFaculty)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="member in faculty" :key="member.faculty_id">
+          <tr v-for="member in faculty" :key="member.faculty_id" :class="{ 'row-selected': selectedIds.has(member.faculty_id) }">
+            <td class="td-checkbox">
+              <input type="checkbox" :checked="selectedIds.has(member.faculty_id)" @change="toggleSelect(member.faculty_id)" />
+            </td>
             <td class="cell-primary cursor-pointer hover:underline" @click="viewDetails(member.faculty_id)">{{
               member.user?.username || 'Unknown' }}</td>
             <td class="cell-primary cursor-pointer hover:underline" @click="viewDetails(member.faculty_id)">{{
@@ -307,12 +332,69 @@ onMounted(loadFaculty)
       :show="showDeleteDialog"
       title="Delete Faculty"
       :item-name="deleteFacultyName"
-      :dependencies="deleteDependencies"
-      :loading="checkingDeps"
       :deleting="deleting"
       @confirm="executeDeleteFaculty"
-      @forceConfirm="forceDeleteFaculty"
       @cancel="showDeleteDialog = false"
     />
+
+    <div v-if="showBulkDeleteDialog" class="admin-modal-overlay" @click.self="showBulkDeleteDialog = false">
+      <div class="admin-modal admin-modal-sm">
+        <h2>Delete {{ selectedIds.size }} Faculty Member(s)</h2>
+        <p class="text-ink-muted mb-4">Are you sure you want to delete {{ selectedIds.size }} selected faculty member(s)? This action cannot be undone. All associated data will also be permanently deleted.</p>
+        <div class="admin-form-actions">
+          <button type="button" class="admin-btn-cancel" @click="showBulkDeleteDialog = false">Cancel</button>
+          <button :disabled="bulkDeleting" class="admin-btn-delete-selected" @click="deleteSelectedFaculty">
+            {{ bulkDeleting ? 'Deleting...' : 'Delete All' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.th-checkbox, .td-checkbox {
+  width: 40px;
+  text-align: center;
+  vertical-align: middle;
+}
+.th-checkbox input, .td-checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.row-selected {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+.admin-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #fef2f2;
+  border-bottom: 1px solid #fecaca;
+}
+.bulk-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+.admin-btn-delete-selected {
+  padding: 6px 16px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-btn-delete-selected:hover:not(:disabled) {
+  background: #b91c1c;
+}
+.admin-btn-delete-selected:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+</style>

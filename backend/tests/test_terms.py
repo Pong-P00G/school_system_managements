@@ -7,6 +7,9 @@ import uuid
 import pytest
 
 from .helpers import (
+    create_course,
+    create_department,
+    create_section,
     create_term,
     _short,
 )

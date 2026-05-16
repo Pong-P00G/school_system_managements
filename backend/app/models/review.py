@@ -1,6 +1,7 @@
 """Review model for student course evaluations."""
 
 from datetime import datetime
+from app.core.database import utcnow
 
 from sqlalchemy import (
     Boolean,
@@ -38,7 +39,7 @@ class Review(Base):
     )
     faculty_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("faculty.faculty_id", ondelete="SET NULL"),
+        ForeignKey("faculty.faculty_id", ondelete="CASCADE"),
         nullable=True,
     )
     term_id = Column(
@@ -62,9 +63,9 @@ class Review(Base):
     is_approved = Column(Boolean, default=True, nullable=False)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
     # Relationships

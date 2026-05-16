@@ -1,6 +1,6 @@
 """Review endpoints — student course evaluations with moderation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -80,7 +80,7 @@ async def list_reviewable_enrollments(
         raise HTTPException(status_code=404, detail="Student profile not found")
 
     # Fetch eligible enrollments
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     result = await db.execute(
         select(Enrollment)
         .options(
@@ -145,7 +145,7 @@ async def list_reviewable_enrollments(
 @router.get("/", response_model=ReviewListOut)
 async def list_reviews(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     course_id: int | None = Query(None),
     faculty_id: UUID | None = Query(None),
     term_id: int | None = Query(None),
@@ -266,7 +266,7 @@ async def create_review(
     if not section:
         raise HTTPException(status_code=400, detail="Section not found for this enrollment")
     term = section.term
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     if enrollment.enrollment_status == "enrolled" and term and term.end_date and term.end_date > now:
         raise HTTPException(
             status_code=400,

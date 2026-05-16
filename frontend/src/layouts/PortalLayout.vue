@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import Icons from '../components/icon/Icons.vue'
+import NotificationBell from '../components/NotificationBell.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -24,14 +25,16 @@ const navigationItems = computed(() => {
             { name: 'Courses', path: '/student/courses', icons: 'mdi-book-open-variant' },
             { name: 'Assignments', path: '/student/assignments', icons: 'mdi-file-document' },
             { name: 'Grades', path: '/student/grades', icons: 'mdi-chart-line' },
-            { name: 'Schedule', path: '/student/schedule', icons: 'mdi-calendar' },
+            { name: 'Schedule', path: '/student/schedule', icons: 'mdi-calendar' },                { name: 'Attendance', path: '/student/attendance', icons: 'mdi-calendar-check' },
+                { name: 'Notifications', path: '/student/notifications', icons: 'mdi-bell-outline' },
         ]
-    } else if (userRole.value === 'teacher') {
+    } else if (userRole.value === 'Professor' || userRole.value === 'teacher') {
         return [
             { name: 'Dashboard', path: '/teacher/dashboard', icons: 'mdi-view-dashboard' },
             { name: 'My Classes', path: '/teacher/courses', icons: 'mdi-book-open-variant' },
             { name: 'Students', path: '/teacher/students', icons: 'mdi-account-group' },
-            { name: 'Grading', path: '/teacher/grades', icons: 'mdi-chart-line' },
+            { name: 'Attendance', path: '/teacher/attendance', icons: 'mdi-calendar-check' },                { name: 'Grading', path: '/teacher/grades', icons: 'mdi-chart-line' },
+                { name: 'Notifications', path: '/teacher/notifications', icons: 'mdi-bell-outline' },
         ]
     }
     return []
@@ -73,7 +76,8 @@ const isActive = (path) => route.path === path
                     </div>
 
                     <!-- Right -->
-                    <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-3">
+                        <NotificationBell />
                         <div class="hidden md:flex items-center gap-2">
                             <div
                                 class="w-8 h-8 rounded-full bg-white/18 text-white font-semibold text-[0.8rem] flex items-center justify-center">

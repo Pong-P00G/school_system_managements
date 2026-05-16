@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import Icons from '../components/icon/Icons.vue'
+import NotificationBell from '../components/NotificationBell.vue'
 
 const collapsed = ref(true)
 const mobileOpen = ref(false)
@@ -30,6 +31,9 @@ const navigationItems = [
     { name: 'Students', path: '/students', Icons: 'UserSquare' },
     { name: 'Staff', path: '/staff', Icons: 'Briefcase' },
     { name: 'Finance', path: '/admin/finance/program-fees', Icons: 'Banknote' },
+    { name: 'Notifications', path: '/notifications', Icons: 'Bell' },
+    { name: 'Attendance', path: '/attendance', Icons: 'CalendarCheck' },
+    { name: 'Roles', path: '/roles', Icons: 'Shield' },
 ]
 
 const logout = async () => {
@@ -135,8 +139,11 @@ const navigateTo = (path) => {
                 <div class="flex-1 min-w-0">
                     <h2 class="text-base font-semibold text-ink truncate">{{ route.meta.title || 'Overview' }}</h2>
                 </div>
-                <div class="text-sm text-ink-muted hidden sm:block whitespace-nowrap">
-                    {{ new Date().toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day:'numeric'}) }}
+                <div class="flex items-center gap-3">
+                    <NotificationBell />
+                    <div class="text-sm text-ink-muted hidden sm:block whitespace-nowrap">
+                        {{ new Date().toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day:'numeric'}) }}
+                    </div>
                 </div>
             </header>
             <main class="px-4 sm:px-6 lg:px-8 py-5 lg:py-7 flex-1">

@@ -1,5 +1,6 @@
 """Enrollment management endpoints with full CRUD operations."""
 
+from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,11 @@ from app.models.academic import CourseSection
 from app.schemas.people import (
     EnrollmentOut, EnrollmentListOut, EnrollmentCreate, EnrollmentUpdate
 )
+from app.services.notification_service import (
+    notify_enrollment_created,
+    notify_grade_submitted,
+    notify_withdrawal,
+)
 
 router = APIRouter()
 
@@ -18,7 +24,7 @@ router = APIRouter()
 @router.get("/", response_model=EnrollmentListOut)
 async def list_enrollments(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     student_id: UUID | None = Query(None),
     section_id: int | None = Query(None),
     enrollment_status: str | None = Query(None),
@@ -27,7 +33,9 @@ async def list_enrollments(
     """List enrollments with optional filters and pagination."""
     query = select(Enrollment).options(
         selectinload(Enrollment.student),
-        selectinload(Enrollment.section)
+        selectinload(Enrollment.section).selectinload(CourseSection.course),
+        selectinload(Enrollment.section).selectinload(CourseSection.term),
+        selectinload(Enrollment.section).selectinload(CourseSection.room),
     )
     count_query = select(func.count(Enrollment.enrollment_id))
 
@@ -58,7 +66,12 @@ async def get_enrollment(enrollment_id: int, db: AsyncSession = Depends(get_db))
     """Get a single enrollment by ID."""
     result = await db.execute(
         select(Enrollment)
-        .options(selectinload(Enrollment.student), selectinload(Enrollment.section))
+        .options(
+            selectinload(Enrollment.student),
+            selectinload(Enrollment.section).selectinload(CourseSection.course),
+            selectinload(Enrollment.section).selectinload(CourseSection.term),
+            selectinload(Enrollment.section).selectinload(CourseSection.room),
+        )
         .where(Enrollment.enrollment_id == enrollment_id)
     )
     enrollment = result.scalar_one_or_none()
@@ -107,11 +120,25 @@ async def create_enrollment(data: EnrollmentCreate, db: AsyncSession = Depends(g
     enrollment = Enrollment(**data.model_dump())
     db.add(enrollment)
 
-    # Update enrolled count
-    section.enrolled_count += 1
-
     await db.flush()
     await db.refresh(enrollment)
+
+    # Re-query with eager loading to avoid MissingGreenlet on response serialization
+    result = await db.execute(
+        select(Enrollment)
+        .options(
+            selectinload(Enrollment.student),
+            selectinload(Enrollment.section).selectinload(CourseSection.course),
+            selectinload(Enrollment.section).selectinload(CourseSection.term),
+            selectinload(Enrollment.section).selectinload(CourseSection.room),
+        )
+        .where(Enrollment.enrollment_id == enrollment.enrollment_id)
+    )
+    enrollment = result.scalar_one()
+
+    # Trigger: notify student about enrollment
+    await notify_enrollment_created(db, data.student_id, data.section_id)
+
     return enrollment
 
 
@@ -130,16 +157,35 @@ async def update_enrollment(enrollment_id: int, data: EnrollmentUpdate, db: Asyn
 
     await db.flush()
     await db.refresh(enrollment)
+
+    # Re-query with eager loading to avoid MissingGreenlet on response serialization
+    result = await db.execute(
+        select(Enrollment)
+        .options(
+            selectinload(Enrollment.student),
+            selectinload(Enrollment.section).selectinload(CourseSection.course),
+            selectinload(Enrollment.section).selectinload(CourseSection.term),
+            selectinload(Enrollment.section).selectinload(CourseSection.room),
+        )
+        .where(Enrollment.enrollment_id == enrollment_id)
+    )
+    enrollment = result.scalar_one()
+
+    # Trigger: notify student about grade if grade was updated
+    if enrollment and "grade" in update_data:
+        await notify_grade_submitted(
+            db, enrollment.student_id, enrollment_id, update_data["grade"],
+        )
+
     return enrollment
 
 
 @router.delete("/{enrollment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_enrollment(
     enrollment_id: int,
-    force: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete an enrollment (withdraw student from section)."""
+    """Delete an enrollment."""
     result = await db.execute(
         select(Enrollment)
         .options(selectinload(Enrollment.section))
@@ -149,58 +195,17 @@ async def delete_enrollment(
     if not enrollment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enrollment not found")
 
-    if not force:
-        # Check for dependent records
-        if enrollment.enrollment_status in ("enrolled", "active") and enrollment.grade is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot delete enrollment: a grade has already been submitted. Withdraw instead."
-            )
-
-    # Update enrolled count
-    if enrollment.section and enrollment.enrollment_status == "enrolled":
-        enrollment.section.enrolled_count -= 1
+    # Notify student about withdrawal before deleting
+    section_id = enrollment.section_id
+    student_id = enrollment.student_id
+    await notify_withdrawal(db, student_id, section_id)
 
     await db.delete(enrollment)
     await db.flush()
     return None
 
 
-@router.post("/{enrollment_id}/withdraw", response_model=EnrollmentOut)
-async def withdraw_from_enrollment(
-    enrollment_id: int, 
-    reason: str | None = None,
-    db: AsyncSession = Depends(get_db)
-):
-    """Withdraw from an enrollment (soft delete by changing status)."""
-    from datetime import datetime
 
-    result = await db.execute(select(Enrollment).where(Enrollment.enrollment_id == enrollment_id))
-    enrollment = result.scalar_one_or_none()
-    if not enrollment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enrollment not found")
-
-    if enrollment.enrollment_status != "enrolled":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only withdraw from active enrollments"
-        )
-
-    enrollment.enrollment_status = "withdrawn"
-    enrollment.withdrawal_date = datetime.utcnow()
-    enrollment.withdrawal_reason = reason
-
-    # Update enrolled count
-    section_result = await db.execute(
-        select(CourseSection).where(CourseSection.section_id == enrollment.section_id)
-    )
-    section = section_result.scalar_one_or_none()
-    if section:
-        section.enrolled_count -= 1
-
-    await db.flush()
-    await db.refresh(enrollment)
-    return enrollment
 
 
 @router.post("/{enrollment_id}/grade", response_model=EnrollmentOut)
@@ -214,19 +219,46 @@ async def submit_grade(
     """Submit a grade for an enrollment."""
     from datetime import datetime
 
-    result = await db.execute(select(Enrollment).where(Enrollment.enrollment_id == enrollment_id))
+    result = await db.execute(
+        select(Enrollment)
+        .options(
+            selectinload(Enrollment.section)
+            .selectinload(CourseSection.course),
+        )
+        .where(Enrollment.enrollment_id == enrollment_id)
+    )
     enrollment = result.scalar_one_or_none()
     if not enrollment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enrollment not found")
+
+    course_name = enrollment.section.course.course_name if enrollment.section and enrollment.section.course else None
+    student_id = enrollment.student_id
 
     enrollment.grade = grade
     enrollment.final_grade = grade
     if grade_points is not None:
         enrollment.grade_points = grade_points
-    enrollment.grade_submitted_date = datetime.utcnow()
+    enrollment.grade_submitted_date = datetime.now(timezone.utc).replace(tzinfo=None)
     enrollment.grade_submitted_by = graded_by
     enrollment.enrollment_status = "completed"
 
     await db.flush()
     await db.refresh(enrollment)
+
+    # Re-query with eager loading to avoid MissingGreenlet on response serialization
+    result = await db.execute(
+        select(Enrollment)
+        .options(
+            selectinload(Enrollment.student),
+            selectinload(Enrollment.section).selectinload(CourseSection.course),
+            selectinload(Enrollment.section).selectinload(CourseSection.term),
+            selectinload(Enrollment.section).selectinload(CourseSection.room),
+        )
+        .where(Enrollment.enrollment_id == enrollment_id)
+    )
+    enrollment = result.scalar_one()
+
+    # Trigger: notify student about grade
+    await notify_grade_submitted(db, student_id, enrollment_id, grade, course_name)
+
     return enrollment

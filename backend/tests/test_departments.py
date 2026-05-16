@@ -64,24 +64,25 @@ async def test_get_department_not_found(client):
 async def test_update_department(client):
     """Update a department."""
     dept = await create_department(client, f"du_{BASE_SUFFIX}")
+    new_name = f"Updated Dept {_short()}"
     resp = await client.put(
         f"/api/v1/departments/{dept['department_id']}",
-        json={"department_name": "Updated Dept Name"},
+        json={"department_name": new_name},
     )
     assert resp.status_code == 200
-    assert resp.json()["department_name"] == "Updated Dept Name"
+    assert resp.json()["department_name"] == new_name
 
 
 @pytest.mark.asyncio
 async def test_delete_department_soft(client):
-    """Delete (soft delete) a department."""
+    """Delete a department (hard delete)."""
     dept = await create_department(client, f"dd_{BASE_SUFFIX}")
     resp = await client.delete(f"/api/v1/departments/{dept['department_id']}")
     assert resp.status_code == 204
 
-    # Verify soft-deleted
+    # Verify it's actually deleted
     get_resp = await client.get(f"/api/v1/departments/{dept['department_id']}")
-    assert get_resp.json()["is_active"] is False
+    assert get_resp.status_code == 404
 
 
 @pytest.mark.asyncio

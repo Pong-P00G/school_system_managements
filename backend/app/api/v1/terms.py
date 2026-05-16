@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("/", response_model=AcademicTermListOut)
 async def list_terms(
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=200),
     academic_year: str | None = Query(None),
     term_type: str | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
@@ -112,25 +112,14 @@ async def update_term(term_id: int, data: AcademicTermUpdate, db: AsyncSession =
 @router.delete("/{term_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_term(
     term_id: int,
-    force: bool = Query(False),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete an academic term."""
+    """Delete an academic term and rely on database cascade rules."""
     result = await db.execute(select(AcademicTerm).where(AcademicTerm.term_id == term_id))
     term = result.scalar_one_or_none()
     if not term:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Academic term not found")
 
-    if not force:
-        # Check for dependent records
-        section_count = await db.scalar(
-            select(func.count(CourseSection.section_id)).where(CourseSection.term_id == term_id)
-        )
-        if section_count:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Cannot delete term: {section_count} course section(s) are scheduled in this term. Remove or reassign them first."
-            )
     await db.delete(term)
     await db.flush()
     return None
@@ -140,7 +129,7 @@ async def delete_term(
 async def get_current_term(db: AsyncSession = Depends(get_db)):
     """Get the currently active academic term."""
     result = await db.execute(
-        select(AcademicTerm).where(AcademicTerm.status == "active").order_by(AcademicTerm.start_date.desc())
+        select(AcademicTerm).where(AcademicTerm.status == "active").order_by(AcademicTerm.start_date.desc()).limit(1)
     )
     term = result.scalar_one_or_none()
     if not term:

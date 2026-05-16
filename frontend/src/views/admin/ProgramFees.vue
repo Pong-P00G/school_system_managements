@@ -1,7 +1,11 @@
 <script setup>
-import { onMounted, ref, computed, watch } from 'vue'
-import { getPrograms, updateProgram } from '../../services/api'
+import { onMounted, ref, watch } from 'vue'
+import { getPrograms, updateProgram, deleteProgram } from '../../services/api'
 import { getApiError } from '../../components/utils/crud'
+import { useToast } from '../../composables/useToast'
+import ConfirmDeleteDialog from '../../components/ConfirmDeleteDialog.vue'
+
+const toast = useToast()
 
 const programs = ref([])
 const totalRecords = ref(0)
@@ -10,6 +14,12 @@ const saving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingProgramId = ref(null)
+
+// Delete state
+const showDeleteDialog = ref(false)
+const deletingProgramId = ref(null)
+const deletingProgramName = ref('')
+const deleting = ref(false)
 
 const form = ref({
     program_code: '',
@@ -78,6 +88,29 @@ const saveFee = async () => {
     }
 }
 
+const confirmDeleteProgram = (program) => {
+    deletingProgramId.value = program.program_id
+    deletingProgramName.value = program.program_name
+    showDeleteDialog.value = true
+}
+
+const executeDeleteProgram = async () => {
+    deleting.value = true
+    error.value = ''
+    try {
+        await deleteProgram(deletingProgramId.value)
+        showDeleteDialog.value = false
+        deletingProgramId.value = null
+        deletingProgramName.value = ''
+        toast.success('Program fee deleted successfully')
+        await loadPrograms()
+    } catch (err) {
+        error.value = getApiError(err, 'Failed to delete program fee')
+    } finally {
+        deleting.value = false
+    }
+}
+
 onMounted(loadPrograms)
 </script>
 
@@ -125,6 +158,8 @@ onMounted(loadPrograms)
                         <td class="px-6 py-4 text-sm text-center">
                             <button class="text-indigo-600 hover:text-indigo-800 font-medium"
                                 @click="openEdit(program)">Edit Fees</button>
+                            <button class="ml-3 text-red-600 hover:text-red-800 font-medium"
+                                @click="confirmDeleteProgram(program)">Delete</button>
                         </td>
                     </tr>
                 </tbody>
@@ -181,5 +216,15 @@ onMounted(loadPrograms)
                 </form>
             </div>
         </div>
+        <ConfirmDeleteDialog
+            :show="showDeleteDialog"
+            title="Delete Program Fee"
+            :item-name="deletingProgramName"
+            :dependencies="[]"
+            :deleting="deleting"
+            @confirm="executeDeleteProgram"
+            @forceConfirm="executeDeleteProgram"
+            @cancel="showDeleteDialog = false"
+        />
     </div>
 </template>

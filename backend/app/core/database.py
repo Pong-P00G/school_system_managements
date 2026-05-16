@@ -1,8 +1,18 @@
 """Database connection and session management."""
 
+from datetime import datetime, timezone
+
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import get_settings
+
+
+def utcnow() -> datetime:
+    """Return current UTC time as a naive datetime.
+
+    Replacement for deprecated ``datetime.utcnow()``.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 settings = get_settings()
 
