@@ -165,6 +165,12 @@ const routes = [
         component: Roles, 
         meta: { title: 'Role Management' } 
       },
+      { 
+        path: 'permissions', 
+        name: 'Permissions', 
+        component: () => import('../views/admin/Permissions.vue'), 
+        meta: { title: 'Page Permissions' } 
+      },
     ]
   },
 
@@ -283,7 +289,7 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
   const role = authStore.userRole || 'admin' 
 
@@ -303,9 +309,25 @@ router.beforeEach((to, _from, next) => {
      let currentRole = role
      if (currentRole === 'faculty') currentRole = 'teacher'
      
-     if (!to.meta.roles.includes(currentRole)) {
+     if (currentRole !== 'super-admin' && !to.meta.roles.includes(currentRole)) {
         next('/unauthorized')
         return
+     }
+
+     // Check page-level permissions for admin layout pages
+     if (currentRole !== 'super-admin' && to.meta.roles.includes('admin')) {
+       try {
+         const { getMyPages } = await import('../services/api')
+         const res = await getMyPages()
+         const allowedPaths = res.data.map(p => p.page_path)
+         const pagePath = '/' + (to.path.split('/').filter(Boolean)[0] || '')
+         if (!allowedPaths.includes(pagePath) && !allowedPaths.includes(to.path)) {
+           next('/unauthorized')
+           return
+         }
+       } catch (e) {
+         // If API fails, allow access (fail open for non-super-admin pages)
+       }
      }
   }
   next()

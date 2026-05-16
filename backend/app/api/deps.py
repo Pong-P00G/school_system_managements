@@ -62,9 +62,9 @@ async def get_current_user(
 async def get_current_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """Require the current user to have an admin role."""
+    """Require the current user to have an admin or super-admin role."""
     if not any(
-        ra.role.role_name == "admin"
+        ra.role.role_name in ("admin", "super-admin")
         for ra in current_user.role_assignments
         if ra.is_active
     ):
@@ -79,7 +79,7 @@ async def get_current_teacher_or_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:
     """Require the current user to have a teacher/faculty or admin role."""
-    allowed = {"admin", "teacher", "faculty"}
+    allowed = {"admin", "teacher", "faculty", "super-admin"}
     if not any(
         ra.role.role_name in allowed
         for ra in current_user.role_assignments
@@ -88,5 +88,21 @@ async def get_current_teacher_or_admin(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Teacher or admin privileges required",
+        )
+    return current_user
+
+
+async def get_current_super_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Require the current user to have the super-admin role."""
+    if not any(
+        ra.role.role_name == "super-admin"
+        for ra in current_user.role_assignments
+        if ra.is_active
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super-admin privileges required",
         )
     return current_user

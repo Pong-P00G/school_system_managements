@@ -36,6 +36,7 @@ class UserRole(Base):
     role_name = Column(String(50), unique=True, nullable=False)
     description = Column(Text, nullable=True)
     is_system_role = Column(Boolean, default=False)
+    role_level = Column(Integer, default=99)
     created_at = Column(DateTime, default=utcnow)
 
     # Relationships
@@ -78,3 +79,34 @@ class UserPersonalInfo(Base):
 
     # Relationships
     user = relationship("User", back_populates="personal_info")
+
+
+class Permission(Base):
+    __tablename__ = "permissions"
+
+    permission_id = Column(Integer, primary_key=True, autoincrement=True)
+    permission_name = Column(String(100), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    role_id = Column(Integer, ForeignKey("user_roles.role_id", ondelete="CASCADE"), nullable=False)
+    permission_id = Column(Integer, ForeignKey("permissions.permission_id", ondelete="CASCADE"), nullable=False)
+
+    __table_args__ = (UniqueConstraint("role_id", "permission_id", name="uq_role_permission"),)
+
+
+class PagePermission(Base):
+    __tablename__ = "page_permissions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    page_path = Column(String(200), nullable=False)
+    page_name = Column(String(100), nullable=False)
+    min_role_level = Column(Integer, default=0)
+    created_at = Column(DateTime, default=utcnow)
+
+    __table_args__ = (UniqueConstraint("page_path", name="uq_page_path"),)

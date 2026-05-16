@@ -24,7 +24,7 @@ const handleLogin = async () => {
         router.push('/student/dashboard')
       } else if (role === 'teacher') {
         router.push('/teacher/dashboard')
-      } else if (role === 'admin') {
+      } else if (role === 'admin' || role === 'super-admin') {
         router.push('/dashboard')
       } else {
         router.push('/')

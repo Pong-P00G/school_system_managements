@@ -15,7 +15,7 @@ const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const userName = computed(() => authStore.user?.username || 'Admin')
+const userName = computed(() => authStore.user?.username || 'Admin', 'Super Admin')
 const userEmail = computed(() => authStore.user?.email || '')
 
 const navigationItems = [
@@ -34,6 +34,7 @@ const navigationItems = [
     { name: 'Notifications', path: '/notifications', Icons: 'Bell' },
     { name: 'Attendance', path: '/attendance', Icons: 'CalendarCheck' },
     { name: 'Roles', path: '/roles', Icons: 'Shield' },
+    { name: 'Permissions', path: '/permissions', Icons: 'Lock' },
 ]
 
 const logout = async () => {

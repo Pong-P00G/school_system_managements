@@ -1,6 +1,6 @@
 """SQLAlchemy models reflecting the school_system_db_v2 schema."""
 
-from app.models.user import User, UserRole, UserRoleAssignment, UserPersonalInfo
+from app.models.user import User, UserRole, UserRoleAssignment, UserPersonalInfo, Permission, RolePermission, PagePermission
 from app.models.academic import (
     Department, Program, Course, AcademicTerm, Building, Room, CourseSection
 )
@@ -17,6 +17,9 @@ __all__ = [
     "UserRole",
     "UserRoleAssignment",
     "UserPersonalInfo",
+    "Permission",
+    "RolePermission",
+    "PagePermission",
     # Academic models
     "Department",
     "Program",

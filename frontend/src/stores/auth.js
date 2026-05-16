@@ -16,7 +16,7 @@ export const useAuthStore = defineStore('auth', () => {
         return assignedRole || null
     })
 
-    const isAdmin = computed(() => userRole.value === 'admin')
+    const isAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'super-admin')
     const isTeacher = computed(() => userRole.value === 'teacher' || userRole.value === 'faculty')
     const isStudent = computed(() => userRole.value === 'student')
 

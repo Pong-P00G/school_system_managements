@@ -20,7 +20,7 @@ const deleteRoleName = ref('')
 const deleteDependencies = ref([])
 const deleting = ref(false)
 
-const defaultForm = () => ({ role_name: '', description: '' })
+const defaultForm = () => ({ role_name: '', description: '', role_level: 99 })
 const form = ref(defaultForm())
 
 const loadRoles = async () => {
@@ -36,16 +36,17 @@ const openCreate = () => { editingRoleId.value = null; form.value = defaultForm(
 
 const openEdit = (role) => {
   editingRoleId.value = role.role_id
-  form.value = { role_name: role.role_name || '', description: role.description || '' }
+  form.value = { role_name: role.role_name || '', description: role.description || '', role_level: role.role_level ?? 99 }
   showModal.value = true
 }
 
-const closeModal = () => { showModal.value = false; editingRoleId.value = null; form.value = defaultForm() }
+const closeModal = () => { showModal.value = false; editingRoleId.value = null; form.value = defaultForm(); error.value = '' }
 
 const saveRole = async () => {
   saving.value = true; error.value = ''
   try {
-    const payload = pick(form.value, ['role_name', 'description'])
+    const payload = pick(form.value, ['role_name', 'description', 'role_level'])
+    payload.role_level = Number(payload.role_level)
     if (editingRoleId.value) {
       await updateRole(editingRoleId.value, payload)
       toast.success('Role updated successfully')
@@ -91,7 +92,7 @@ onMounted(loadRoles)
       <button class="admin-btn-add" @click="openCreate">+ Add Role</button>
     </div>
 
-    <div v-if="error" class="admin-error">{{ error }}</div>
+    <div v-if="error && !showModal" class="admin-error">{{ error }}</div>
     <div v-if="loading" class="admin-loading">Loading roles...</div>
 
     <div v-else class="admin-table-card">
@@ -99,15 +100,17 @@ onMounted(loadRoles)
       <table class="admin-table">
         <thead>
           <tr>
+            <th>Level</th>
             <th>Role Name</th>
             <th>Description</th>
-            <th>System Role</th>
+            <th>Type</th>
             <th>Created</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="role in roles" :key="role.role_id">
+            <td class="text-center font-mono font-bold">{{ role.role_level }}</td>
             <td class="cell-primary">{{ role.role_name }}</td>
             <td>{{ role.description || '—' }}</td>
             <td>
@@ -118,16 +121,11 @@ onMounted(loadRoles)
             <td class="text-sm text-ink-muted">{{ role.created_at ? new Date(role.created_at).toLocaleDateString() : '—' }}</td>
             <td>
               <button class="admin-action-btn admin-action-edit" @click="openEdit(role)">Edit</button>
-              <button
-                v-if="!role.is_system_role"
-                class="admin-action-btn admin-action-delete"
-                @click="confirmDeleteRole(role.role_id, role.role_name)"
-              >Delete</button>
-              <span v-else class="text-xs text-ink-muted italic">Protected</span>
+              <button class="admin-action-btn admin-action-delete" @click="confirmDeleteRole(role.role_id, role.role_name)">Delete</button>
             </td>
           </tr>
           <tr v-if="roles.length === 0">
-            <td colspan="5" class="text-center text-ink-muted py-6">No roles found. Click "Add Role" to create one.</td>
+            <td colspan="6" class="text-center text-ink-muted py-6">No roles found.</td>
           </tr>
         </tbody>
       </table>
@@ -138,9 +136,15 @@ onMounted(loadRoles)
       <div class="admin-modal admin-modal-sm">
         <h2>{{ editingRoleId ? 'Edit Role' : 'Create Role' }}</h2>
         <form class="admin-form-grid" @submit.prevent="saveRole">
+          <div v-if="error" class="admin-error col-span-full">{{ error }}</div>
           <div class="col-span-full">
             <label class="form-label">Role Name</label>
             <input v-model="form.role_name" placeholder="e.g. moderator" required maxlength="50" />
+          </div>
+          <div class="col-span-full">
+            <label class="form-label">Role Level</label>
+            <input v-model.number="form.role_level" type="number" min="0" max="99" required />
+            <p class="text-xs text-ink-muted mt-1">Lower number = higher privilege (0 = super-admin)</p>
           </div>
           <div class="col-span-full">
             <label class="form-label">Description</label>

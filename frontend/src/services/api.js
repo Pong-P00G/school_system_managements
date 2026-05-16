@@ -170,6 +170,15 @@ export const deleteRole = (roleId) => api.delete(`/roles/${roleId}`)
 export const assignRole = (userId, roleId) => api.post(`/users/${userId}/roles/${roleId}`)
 export const removeRole = (userId, roleId) => api.delete(`/users/${userId}/roles/${roleId}`)
 
+// --- Permissions (Super-Admin) ---
+export const getPermissions = () => api.get('/permissions/')
+export const getRolePermissions = (roleId) => api.get(`/permissions/role/${roleId}`)
+export const assignPermissionToRole = (roleId, permissionId) => api.post('/permissions/role', { role_id: roleId, permission_id: permissionId })
+export const removePermissionFromRole = (roleId, permissionId) => api.delete(`/permissions/role/${roleId}/${permissionId}`)
+export const getPagePermissions = () => api.get('/permissions/pages')
+export const updatePagePermission = (pageId, data) => api.put(`/permissions/pages/${pageId}`, data)
+export const getMyPages = () => api.get('/permissions/my-pages')
+
 // --- Enrollments ---
 export const enrollStudent = (sectionId, studentId) => api.post(`/sections/${sectionId}/enroll`, null, { params: { student_id: studentId } })
 export const joinSectionByCode = (joinCode, studentId) => api.post('/sections/join', { join_code: joinCode, student_id: studentId })

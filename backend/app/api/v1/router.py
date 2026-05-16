@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     health, auth, users, departments, courses, programs, 
     students, faculty, staff, enrollments, terms, sections,
-    assignments, reviews, notifications, attendance, roles
+    assignments, reviews, notifications, attendance, roles, permissions
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -26,3 +26,4 @@ api_router.include_router(reviews.router, prefix="/reviews", tags=["Reviews"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(attendance.router, prefix="/attendance", tags=["Attendance"])
 api_router.include_router(roles.router, prefix="/roles", tags=["Roles"])
+api_router.include_router(permissions.router, prefix="/permissions", tags=["Permissions"])

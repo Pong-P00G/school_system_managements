@@ -65,17 +65,22 @@ class UserPersonalInfoOut(UserPersonalInfoBase):
 class RoleCreate(BaseModel):
     role_name: str = Field(..., min_length=1, max_length=50)
     description: str | None = None
+    role_level: int = Field(default=99, ge=0)
 
 
 class RoleUpdate(BaseModel):
     role_name: str | None = Field(None, min_length=1, max_length=50)
     description: str | None = None
+    role_level: int | None = Field(None, ge=0)
 
 
 class UserRoleOut(BaseModel):
     role_id: int
     role_name: str
     description: str | None = None
+    role_level: int = 99
+    is_system_role: bool = False
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
