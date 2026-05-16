@@ -163,6 +163,7 @@ export const deleteNotification = (id) => api.delete(`/notifications/${id}`)
 
 // --- Role Management (Admin) ---
 export const getRoles = () => api.get('/users/roles')
+export const getAdminRoles = (skip = 0, limit = 100) => api.get(`/roles/?skip=${skip}&limit=${limit}`)
 export const getRole = (roleId) => api.get(`/roles/${roleId}`)
 export const createRole = (data) => api.post('/roles/', data)
 export const updateRole = (roleId, data) => api.put(`/roles/${roleId}`, data)

@@ -1,6 +1,6 @@
 <script setup>
-import { onMounted, ref } from 'vue'
-import { getRoles, createRole, updateRole, deleteRole } from '../../services/api'
+import { onMounted, ref, computed } from 'vue'
+import { getAdminRoles, createRole, updateRole, deleteRole } from '../../services/api'
 import { getApiError, pick } from '../../components/utils/crud'
 import { useToast } from '../../composables/useToast'
 import ConfirmDeleteDialog from '../../components/ConfirmDeleteDialog.vue'
@@ -8,6 +8,7 @@ import ConfirmDeleteDialog from '../../components/ConfirmDeleteDialog.vue'
 const toast = useToast()
 
 const roles = ref([])
+const totalRoles = ref(0)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -17,26 +18,41 @@ const editingRoleId = ref(null)
 const showDeleteDialog = ref(false)
 const deletingRoleId = ref(null)
 const deleteRoleName = ref('')
-const deleteDependencies = ref([])
 const deleting = ref(false)
 
 const defaultForm = () => ({ role_name: '', description: '', role_level: 99 })
 const form = ref(defaultForm())
 
+const levelColors = {
+  0: 'bg-red-100 text-red-800',
+  1: 'bg-orange-100 text-orange-800',
+  2: 'bg-amber-100 text-amber-800',
+  3: 'bg-yellow-100 text-yellow-800',
+  4: 'bg-lime-100 text-lime-800',
+  5: 'bg-green-100 text-green-800',
+  6: 'bg-teal-100 text-teal-800',
+  7: 'bg-cyan-100 text-cyan-800',
+  8: 'bg-blue-100 text-blue-800',
+}
+
+const getLevelClass = (level) => levelColors[level] || 'bg-gray-100 text-gray-800'
+
 const loadRoles = async () => {
   loading.value = true; error.value = ''
   try {
-    const res = await getRoles()
-    roles.value = res.data
+    const res = await getAdminRoles()
+    roles.value = res.data.roles || res.data
+    totalRoles.value = res.data.total || roles.value.length
   } catch (err) { error.value = getApiError(err, 'Failed to load roles') }
   finally { loading.value = false }
 }
 
-const openCreate = () => { editingRoleId.value = null; form.value = defaultForm(); showModal.value = true }
+const openCreate = () => { editingRoleId.value = null; form.value = defaultForm(); error.value = ''; showModal.value = true }
 
 const openEdit = (role) => {
   editingRoleId.value = role.role_id
   form.value = { role_name: role.role_name || '', description: role.description || '', role_level: role.role_level ?? 99 }
+  error.value = ''
   showModal.value = true
 }
 
@@ -63,7 +79,6 @@ const saveRole = async () => {
 const confirmDeleteRole = (roleId, roleName) => {
   deletingRoleId.value = roleId
   deleteRoleName.value = roleName
-  deleteDependencies.value = []
   showDeleteDialog.value = true
 }
 
@@ -88,72 +103,106 @@ onMounted(loadRoles)
 <template>
   <div>
     <div class="admin-page-header">
-      <h1>Role Management</h1>
-      <button class="admin-btn-add" @click="openCreate">+ Add Role</button>
+      <div>
+        <h1>Role Management</h1>
+        <p class="text-sm text-ink-muted mt-1">Manage user roles and privilege levels. Lower level = higher privilege.</p>
+      </div>
+      <button class="admin-btn-add" @click="openCreate">
+        <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add Role
+      </button>
     </div>
 
     <div v-if="error && !showModal" class="admin-error">{{ error }}</div>
     <div v-if="loading" class="admin-loading">Loading roles...</div>
 
     <div v-else class="admin-table-card">
-      <div class="admin-record-count">{{ roles.length }} role(s)</div>
+      <div class="admin-record-count">{{ totalRoles }} role(s)</div>
       <table class="admin-table">
         <thead>
           <tr>
-            <th>Level</th>
+            <th class="w-20 text-center">Level</th>
             <th>Role Name</th>
             <th>Description</th>
-            <th>Type</th>
-            <th>Created</th>
-            <th>Actions</th>
+            <th class="w-24 text-center">Type</th>
+            <th class="w-32">Created</th>
+            <th class="w-40 text-center">Actions</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="role in roles" :key="role.role_id">
-            <td class="text-center font-mono font-bold">{{ role.role_level }}</td>
-            <td class="cell-primary">{{ role.role_name }}</td>
-            <td>{{ role.description || '—' }}</td>
-            <td>
+            <td class="text-center">
+              <span class="inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold" :class="getLevelClass(role.role_level)">
+                {{ role.role_level }}
+              </span>
+            </td>
+            <td class="cell-primary">
+              <span class="font-medium">{{ role.role_name }}</span>
+            </td>
+            <td class="text-sm text-ink-secondary">{{ role.description || '—' }}</td>
+            <td class="text-center">
               <span class="admin-badge" :class="role.is_system_role ? 'admin-badge-active' : 'admin-badge-inactive'">
                 {{ role.is_system_role ? 'System' : 'Custom' }}
               </span>
             </td>
             <td class="text-sm text-ink-muted">{{ role.created_at ? new Date(role.created_at).toLocaleDateString() : '—' }}</td>
-            <td>
-              <button class="admin-action-btn admin-action-edit" @click="openEdit(role)">Edit</button>
-              <button class="admin-action-btn admin-action-delete" @click="confirmDeleteRole(role.role_id, role.role_name)">Delete</button>
+            <td class="text-center">
+              <div class="inline-flex gap-1">
+                <button class="admin-action-btn admin-action-edit" @click="openEdit(role)" title="Edit role">Edit</button>
+                <button class="admin-action-btn admin-action-delete" @click="confirmDeleteRole(role.role_id, role.role_name)" title="Delete role">Delete</button>
+              </div>
             </td>
           </tr>
           <tr v-if="roles.length === 0">
-            <td colspan="6" class="text-center text-ink-muted py-6">No roles found.</td>
+            <td colspan="6" class="text-center text-ink-muted py-8">
+              <div class="flex flex-col items-center gap-2">
+                <svg class="w-10 h-10 text-ink-muted opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                <span>No roles found. Click "Add Role" to create one.</span>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
     </div>
 
     <!-- Create / Edit Modal -->
-    <div v-if="showModal" class="admin-modal-overlay">
+    <div v-if="showModal" class="admin-modal-overlay" @click.self="closeModal">
       <div class="admin-modal admin-modal-sm">
-        <h2>{{ editingRoleId ? 'Edit Role' : 'Create Role' }}</h2>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="!mb-0">{{ editingRoleId ? 'Edit Role' : 'Create Role' }}</h2>
+          <button @click="closeModal" class="text-ink-muted hover:text-ink transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
         <form class="admin-form-grid" @submit.prevent="saveRole">
-          <div v-if="error" class="admin-error col-span-full">{{ error }}</div>
+          <div v-if="error" class="admin-error col-span-full !mb-2">{{ error }}</div>
           <div class="col-span-full">
             <label class="form-label">Role Name</label>
-            <input v-model="form.role_name" placeholder="e.g. moderator" required maxlength="50" />
+            <input v-model="form.role_name" placeholder="e.g. moderator" required maxlength="50" class="w-full" />
           </div>
           <div class="col-span-full">
             <label class="form-label">Role Level</label>
-            <input v-model.number="form.role_level" type="number" min="0" max="99" required />
-            <p class="text-xs text-ink-muted mt-1">Lower number = higher privilege (0 = super-admin)</p>
+            <div class="flex items-center gap-3">
+              <input v-model.number="form.role_level" type="number" min="0" max="99" required class="w-24" />
+              <div class="flex-1">
+                <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 rounded-full transition-all" :style="{width: Math.min(100, (form.role_level / 10) * 100) + '%'}"></div>
+                </div>
+                <div class="flex justify-between text-xs text-ink-muted mt-1">
+                  <span>High privilege</span>
+                  <span>Low privilege</span>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="col-span-full">
             <label class="form-label">Description</label>
-            <textarea v-model="form.description" placeholder="Optional description" rows="3" maxlength="500"></textarea>
+            <textarea v-model="form.description" placeholder="Optional description of this role's purpose" rows="3" maxlength="500" class="w-full"></textarea>
           </div>
           <div class="admin-form-actions">
             <button type="button" class="admin-btn-cancel" @click="closeModal">Cancel</button>
             <button :disabled="saving" type="submit" class="admin-btn-save">
-              {{ saving ? 'Saving...' : (editingRoleId ? 'Update' : 'Create') }}
+              {{ saving ? 'Saving...' : (editingRoleId ? 'Update Role' : 'Create Role') }}
             </button>
           </div>
         </form>
@@ -162,12 +211,10 @@ onMounted(loadRoles)
 
     <!-- Delete Confirmation -->
     <ConfirmDeleteDialog
-      :visible="showDeleteDialog"
+      :show="showDeleteDialog"
       :item-name="deleteRoleName"
-      :dependencies="deleteDependencies"
       :deleting="deleting"
       @confirm="executeDeleteRole"
-      @force-delete="executeDeleteRole"
       @cancel="showDeleteDialog = false"
     />
   </div>

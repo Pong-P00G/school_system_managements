@@ -55,11 +55,11 @@ const excusedCount = computed(() =>
 
 async function loadSections() {
   try {
-    const isAdmin = authStore.userRole === 'admin'
+    const isAdmin = authStore.userRole === 'admin' || authStore.userRole === 'super-admin'
     const res = isAdmin
       ? await getSections(0, 200)
       : await getFacultySections('me')
-    sections.value = isAdmin ? res.data : res.data
+    sections.value = res.data.sections || res.data
   } catch {
     error.value = 'Failed to load sections'
   }

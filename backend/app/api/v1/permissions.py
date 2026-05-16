@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.models.user import Permission, RolePermission, PagePermission
+from app.models.audit import AuditLog, log_audit
 from app.api.deps import get_current_super_admin, get_current_user
 from pydantic import BaseModel
 
@@ -115,9 +116,12 @@ async def update_page_permission(
     page = result.scalar_one_or_none()
     if not page:
         raise HTTPException(status_code=404, detail="Page permission not found")
+    old_level = page.min_role_level
     page.min_role_level = data.min_role_level
+    db.add(AuditLog(action="update", entity_type="page_permission", entity_id=str(page_id), user_id=current_user.user_id, old_values={"min_role_level": old_level}, new_values={"min_role_level": data.min_role_level}))
     await db.flush()
     await db.refresh(page)
+    log_audit("update", "page_permission", page_id, page.page_name, current_user)
     return page
 
 

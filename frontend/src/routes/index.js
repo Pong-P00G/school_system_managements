@@ -317,9 +317,10 @@ router.beforeEach(async (to, _from, next) => {
      // Check page-level permissions for admin layout pages
      if (currentRole !== 'super-admin' && to.meta.roles.includes('admin')) {
        try {
-         const { getMyPages } = await import('../services/api')
-         const res = await getMyPages()
-         const allowedPaths = res.data.map(p => p.page_path)
+         const { usePagePermissions } = await import('../composables/usePagePermissions')
+         const { fetchMyPages } = usePagePermissions()
+         const pages = await fetchMyPages()
+         const allowedPaths = pages.map(p => p.page_path)
          const pagePath = '/' + (to.path.split('/').filter(Boolean)[0] || '')
          if (!allowedPaths.includes(pagePath) && !allowedPaths.includes(to.path)) {
            next('/unauthorized')

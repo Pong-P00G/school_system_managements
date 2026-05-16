@@ -6,13 +6,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, get_password_hash
+from app.core.rate_limit import rate_limit_auth
 from app.models.user import User
 from app.schemas.user import LoginRequest, TokenResponse, UserCreate, UserOut
 
 router = APIRouter()
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(rate_limit_auth)])
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate user and return JWT token."""
     result = await db.execute(select(User).where(User.username == request.username))
@@ -35,7 +36,7 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(access_token=token)
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit_auth)])
 async def register(request: UserCreate, db: AsyncSession = Depends(get_db)):
     """Register a new user."""
     # Check existing

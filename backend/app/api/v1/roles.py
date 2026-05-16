@@ -1,14 +1,22 @@
 """Role management endpoints with level-based access control."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import json
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete as sa_delete
+from sqlalchemy import select, func, delete as sa_delete
 from app.core.database import get_db
 from app.models.user import UserRole, UserRoleAssignment
+from app.models.audit import AuditLog, log_audit
 from app.schemas.user import UserRoleOut, RoleCreate, RoleUpdate
 from app.api.deps import get_current_admin
+from pydantic import BaseModel
 
 router = APIRouter()
+
+
+class RoleListOut(BaseModel):
+    roles: list[UserRoleOut]
+    total: int
 
 
 def get_user_level(current_user) -> int:
@@ -20,13 +28,16 @@ def get_user_level(current_user) -> int:
     return min(levels) if levels else 99
 
 
-@router.get("/", response_model=list[UserRoleOut])
+@router.get("/", response_model=RoleListOut)
 async def list_roles(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_admin),
 ):
-    result = await db.execute(select(UserRole).order_by(UserRole.role_level))
-    return result.scalars().all()
+    total = await db.scalar(select(func.count(UserRole.role_id)))
+    result = await db.execute(select(UserRole).order_by(UserRole.role_level).offset(skip).limit(limit))
+    return RoleListOut(roles=result.scalars().all(), total=total)
 
 
 @router.post("/", response_model=UserRoleOut, status_code=status.HTTP_201_CREATED)
@@ -48,6 +59,10 @@ async def create_role(
     db.add(role)
     await db.flush()
     await db.refresh(role)
+
+    db.add(AuditLog(action="create", entity_type="role", entity_id=str(role.role_id), user_id=current_user.user_id, new_values=data.model_dump()))
+    await db.flush()
+    log_audit("create", "role", role.role_id, role.role_name, current_user)
     return role
 
 
@@ -99,6 +114,10 @@ async def update_role(
 
     await db.flush()
     await db.refresh(role)
+
+    db.add(AuditLog(action="update", entity_type="role", entity_id=str(role.role_id), user_id=current_user.user_id, new_values=update_data))
+    await db.flush()
+    log_audit("update", "role", role.role_id, role.role_name, current_user, json.dumps(update_data))
     return role
 
 
@@ -118,6 +137,10 @@ async def delete_role(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete a role with equal or higher privilege")
 
     await db.execute(sa_delete(UserRoleAssignment).where(UserRoleAssignment.role_id == role_id))
+
+    role_name = role.role_name
+    db.add(AuditLog(action="delete", entity_type="role", entity_id=str(role_id), user_id=current_user.user_id, old_values={"role_name": role_name, "role_level": role.role_level}))
     await db.delete(role)
     await db.flush()
+    log_audit("delete", "role", role_id, role_name, current_user)
     return None
