@@ -3,7 +3,7 @@
 from datetime import datetime, date
 from decimal import Decimal
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 from app.schemas.user import UserOut
 from app.schemas.academic import CourseSectionOut
@@ -415,12 +415,20 @@ class AttendanceBase(BaseModel):
     arrival_time: str | None = None
     notes: str | None = None
 
+    @field_validator("class_date")
+    @classmethod
+    def no_future_date(cls, v: date) -> date:
+        if v > date.today():
+            raise ValueError("Cannot record attendance for a future date")
+        return v
+
 
 class AttendanceCreate(AttendanceBase):
-    recorded_by: UUID
+    pass
 
 
 class AttendanceUpdate(BaseModel):
+    attendance_id: int | None = None
     attendance_status: str | None = None
     arrival_time: str | None = None
     notes: str | None = None
@@ -434,7 +442,7 @@ class AttendanceOut(BaseModel):
     attendance_status: str
     arrival_time: str | None = None
     notes: str | None = None
-    recorded_by: UUID
+    recorded_by: UUID | None = None
     created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
@@ -443,6 +451,8 @@ class AttendanceOut(BaseModel):
 class AttendanceListOut(BaseModel):
     attendance_records: list[AttendanceOut]
     total: int
+    page: int = 1
+    per_page: int = 50
 
 
 

@@ -17,7 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
     })
 
     const isAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'super-admin')
-    const isTeacher = computed(() => userRole.value === 'teacher' || userRole.value === 'faculty')
+    const isTeacher = computed(() => userRole.value === 'teacher' || userRole.value === 'faculty' || userRole.value === 'professor')
     const isStudent = computed(() => userRole.value === 'student')
 
     async function login(username, password) {

@@ -25,16 +25,18 @@ const navigationItems = computed(() => {
             { name: 'Courses', path: '/student/courses', icons: 'mdi-book-open-variant' },
             { name: 'Assignments', path: '/student/assignments', icons: 'mdi-file-document' },
             { name: 'Grades', path: '/student/grades', icons: 'mdi-chart-line' },
-            { name: 'Schedule', path: '/student/schedule', icons: 'mdi-calendar' },                { name: 'Attendance', path: '/student/attendance', icons: 'mdi-calendar-check' },
-                { name: 'Notifications', path: '/student/notifications', icons: 'mdi-bell-outline' },
+            { name: 'Schedule', path: '/student/schedule', icons: 'mdi-calendar' },                
+            { name: 'Attendance', path: '/student/attendance', icons: 'mdi-calendar-check' },
+            { name: 'Notifications', path: '/student/notifications', icons: 'mdi-bell-outline' },
         ]
-    } else if (userRole.value === 'Professor' || userRole.value === 'teacher') {
+    } else if (userRole.value === 'professor' || userRole.value === 'teacher') {
         return [
             { name: 'Dashboard', path: '/teacher/dashboard', icons: 'mdi-view-dashboard' },
             { name: 'My Classes', path: '/teacher/courses', icons: 'mdi-book-open-variant' },
             { name: 'Students', path: '/teacher/students', icons: 'mdi-account-group' },
-            { name: 'Attendance', path: '/teacher/attendance', icons: 'mdi-calendar-check' },                { name: 'Grading', path: '/teacher/grades', icons: 'mdi-chart-line' },
-                { name: 'Notifications', path: '/teacher/notifications', icons: 'mdi-bell-outline' },
+            { name: 'Attendance', path: '/teacher/attendance', icons: 'mdi-calendar-check' },                
+            { name: 'Grading', path: '/teacher/grades', icons: 'mdi-chart-line' },
+            { name: 'Notifications', path: '/teacher/notifications', icons: 'mdi-bell-outline' },
         ]
     }
     return []

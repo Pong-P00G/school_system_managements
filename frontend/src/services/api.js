@@ -186,9 +186,12 @@ export const joinSectionByCode = (joinCode, studentId) => api.post('/sections/jo
 
 // --- Attendance ---
 export const getSectionAttendance = (sectionId, params = {}) => api.get(`/attendance/section/${sectionId}`, { params })
+export const getSectionAttendanceSummary = (sectionId) => api.get(`/attendance/section/${sectionId}/summary`)
 export const getMyAttendance = (params = {}) =>  api.get('/attendance/my', { params })
+export const getMyAttendanceSummary = (params = {}) => api.get('/attendance/my/summary', { params })
 export const getAttendanceRecord = (id) => api.get(`/attendance/${id}`)
 export const recordAttendance = (data) => api.post('/attendance/', data)
 export const recordBulkAttendance = (records) => api.post('/attendance/bulk', records)
+export const bulkUpdateAttendance = (records) => api.put('/attendance/bulk', records)
 export const updateAttendance = (id, data) => api.put(`/attendance/${id}`, data)
 export const deleteAttendance = (id) => api.delete(`/attendance/${id}`)

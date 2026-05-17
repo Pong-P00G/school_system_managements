@@ -1,15 +1,15 @@
 """Attendance management API endpoints."""
 
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, get_current_admin, get_current_teacher_or_admin
 from app.core.database import get_db
-from app.models.people import Attendance, Student
+from app.models.people import Attendance, Student, Enrollment
 from app.models.academic import CourseSection
 from app.models.user import User
 from app.models.notification import Notification
@@ -22,131 +22,267 @@ from app.schemas.people import (
 
 router = APIRouter()
 
+ABSENT_ALERT_THRESHOLD = 3
 
-async def _get_attendance_or_404(
-    db: AsyncSession, attendance_id: int
-) -> Attendance:
-    """Fetch an attendance record by ID or raise 404."""
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+async def _get_attendance_or_404(db: AsyncSession, attendance_id: int) -> Attendance:
     result = await db.execute(
         select(Attendance).where(Attendance.attendance_id == attendance_id)
     )
     attendance = result.scalar_one_or_none()
     if not attendance:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Attendance record not found",
-        )
+        raise HTTPException(status_code=404, detail="Attendance record not found")
     return attendance
 
+
+async def _sync_enrollment_attendance(db: AsyncSession, section_id: int, student_id: UUID):
+    """Recalculate and update attendance_percentage on the enrollment."""
+    total = await db.scalar(
+        select(func.count(Attendance.attendance_id)).where(
+            Attendance.section_id == section_id,
+            Attendance.student_id == student_id,
+        )
+    )
+    present = await db.scalar(
+        select(func.count(Attendance.attendance_id)).where(
+            Attendance.section_id == section_id,
+            Attendance.student_id == student_id,
+            Attendance.attendance_status.in_(["present", "late"]),
+        )
+    )
+    pct = round(present / total * 100, 2) if total > 0 else 0
+
+    enrollment = await db.scalar(
+        select(Enrollment).where(
+            Enrollment.section_id == section_id,
+            Enrollment.student_id == student_id,
+        )
+    )
+    if enrollment:
+        enrollment.attendance_percentage = pct
+
+
+async def _check_absent_alert(db: AsyncSession, section_id: int, student_id: UUID, course_name: str | None):
+    """Send alert if student hits absence threshold."""
+    absent_count = await db.scalar(
+        select(func.count(Attendance.attendance_id)).where(
+            Attendance.section_id == section_id,
+            Attendance.student_id == student_id,
+            Attendance.attendance_status == "absent",
+        )
+    )
+    if absent_count and absent_count >= ABSENT_ALERT_THRESHOLD and absent_count % ABSENT_ALERT_THRESHOLD == 0:
+        notif = Notification(
+            user_id=student_id,
+            title="Attendance Warning",
+            message=f"You have {absent_count} absences in {course_name or 'a course'}. Please contact your instructor.",
+            notification_type="error",
+            reference_type="attendance_alert",
+            reference_id=str(section_id),
+        )
+        db.add(notif)
+
+
+def _validate_not_future(class_date: date):
+    if class_date > date.today():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot record attendance for a future date",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Section endpoints (teacher/admin)
+# ---------------------------------------------------------------------------
 
 @router.get("/section/{section_id}", response_model=AttendanceListOut)
 async def get_section_attendance(
     section_id: int,
-    class_date: date | None = Query(None, description="Filter by class date"),
-    page: int = Query(1, ge=1, description="Page number"),
-    per_page: int = Query(50, ge=1, le=200, description="Items per page"),
+    class_date: date | None = Query(None),
+    start_date: date | None = Query(None, description="Filter from date"),
+    end_date: date | None = Query(None, description="Filter to date"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_teacher_or_admin),
 ):
-    """Get attendance records for a course section. Requires teacher or admin."""
-    # Verify section exists
-    section_result = await db.execute(
-        select(CourseSection)
-        .options(selectinload(CourseSection.course))
-        .where(CourseSection.section_id == section_id)
+    """Get attendance records for a section with date-range filtering."""
+    section = await db.scalar(
+        select(CourseSection).where(CourseSection.section_id == section_id)
     )
-    section = section_result.scalar_one_or_none()
     if not section:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course section not found",
-        )
+        raise HTTPException(status_code=404, detail="Course section not found")
 
     query = select(Attendance).options(
-        selectinload(Attendance.student)
-        .selectinload(Student.user)
+        selectinload(Attendance.student).selectinload(Student.user)
     ).where(Attendance.section_id == section_id)
+
+    count_query = select(func.count(Attendance.attendance_id)).where(
+        Attendance.section_id == section_id
+    )
 
     if class_date:
         query = query.where(Attendance.class_date == class_date)
+        count_query = count_query.where(Attendance.class_date == class_date)
+    if start_date:
+        query = query.where(Attendance.class_date >= start_date)
+        count_query = count_query.where(Attendance.class_date >= start_date)
+    if end_date:
+        query = query.where(Attendance.class_date <= end_date)
+        count_query = count_query.where(Attendance.class_date <= end_date)
 
+    total = await db.scalar(count_query) or 0
     query = query.order_by(Attendance.class_date.desc(), Attendance.student_id)
     query = query.offset((page - 1) * per_page).limit(per_page)
+    records = (await db.execute(query)).scalars().all()
 
-    result = await db.execute(query)
-    records = result.scalars().all()
+    return AttendanceListOut(attendance_records=records, total=total, page=page, per_page=per_page)
 
-    # Get total count
-    count_query = select(Attendance.attendance_id).where(
-        Attendance.section_id == section_id
+
+@router.get("/section/{section_id}/summary")
+async def get_section_attendance_summary(
+    section_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_teacher_or_admin),
+):
+    """Get per-student attendance summary for a section."""
+    section = await db.scalar(
+        select(CourseSection).options(selectinload(CourseSection.course))
+        .where(CourseSection.section_id == section_id)
     )
-    if class_date:
-        count_query = count_query.where(Attendance.class_date == class_date)
-    total_result = await db.execute(count_query)
-    total = len(total_result.all())
+    if not section:
+        raise HTTPException(status_code=404, detail="Course section not found")
 
-    return AttendanceListOut(
-        attendance_records=records,
-        total=total,
-        page=page,
-        per_page=per_page,
+    # Get all students with their attendance counts
+    result = await db.execute(
+        select(
+            Attendance.student_id,
+            Attendance.attendance_status,
+            func.count(Attendance.attendance_id),
+        )
+        .where(Attendance.section_id == section_id)
+        .group_by(Attendance.student_id, Attendance.attendance_status)
+    )
+    rows = result.all()
+
+    # Build per-student summary
+    students: dict = {}
+    for student_id, att_status, count in rows:
+        if student_id not in students:
+            students[student_id] = {"student_id": str(student_id), "present": 0, "absent": 0, "late": 0, "excused": 0, "total": 0}
+        students[student_id][att_status] = students[student_id].get(att_status, 0) + count
+        students[student_id]["total"] += count
+
+    for s in students.values():
+        s["attendance_rate"] = round((s["present"] + s["late"]) / s["total"] * 100, 1) if s["total"] > 0 else 0
+
+    # Total class sessions
+    total_dates = await db.scalar(
+        select(func.count(func.distinct(Attendance.class_date)))
+        .where(Attendance.section_id == section_id)
     )
 
+    return {
+        "section_id": section_id,
+        "course_name": section.course.course_name if section.course else None,
+        "total_sessions": total_dates or 0,
+        "students": list(students.values()),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Student endpoints
+# ---------------------------------------------------------------------------
 
 @router.get("/my", response_model=AttendanceListOut)
 async def get_my_attendance(
-    class_date: date | None = Query(None, description="Filter by class date"),
-    page: int = Query(1, ge=1, description="Page number"),
-    per_page: int = Query(50, ge=1, le=200, description="Items per page"),
+    section_id: int | None = Query(None),
+    class_date: date | None = Query(None),
+    start_date: date | None = Query(None),
+    end_date: date | None = Query(None),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get attendance records for the current student."""
-    # Find the student profile for this user
-    student_result = await db.execute(
-        select(Student).where(Student.user_id == current_user.user_id)
+    """Get attendance records for the current student with date-range filtering."""
+    student = await db.scalar(
+        select(Student).where(Student.student_id == current_user.user_id)
     )
-    student = student_result.scalar_one_or_none()
     if not student:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student profile not found",
-        )
+        raise HTTPException(status_code=404, detail="Student profile not found")
 
     query = (
         select(Attendance)
-        .options(
-            selectinload(Attendance.section)
-            .selectinload(CourseSection.course)
-        )
+        .options(selectinload(Attendance.section).selectinload(CourseSection.course))
         .where(Attendance.student_id == student.student_id)
     )
-
-    if class_date:
-        query = query.where(Attendance.class_date == class_date)
-
-    query = query.order_by(Attendance.class_date.desc())
-
-    # Get total count
-    count_query = select(Attendance.attendance_id).where(
+    count_query = select(func.count(Attendance.attendance_id)).where(
         Attendance.student_id == student.student_id
     )
+
+    if section_id:
+        query = query.where(Attendance.section_id == section_id)
+        count_query = count_query.where(Attendance.section_id == section_id)
     if class_date:
+        query = query.where(Attendance.class_date == class_date)
         count_query = count_query.where(Attendance.class_date == class_date)
-    total_result = await db.execute(count_query)
-    total = len(total_result.all())
+    if start_date:
+        query = query.where(Attendance.class_date >= start_date)
+        count_query = count_query.where(Attendance.class_date >= start_date)
+    if end_date:
+        query = query.where(Attendance.class_date <= end_date)
+        count_query = count_query.where(Attendance.class_date <= end_date)
 
+    total = await db.scalar(count_query) or 0
+    query = query.order_by(Attendance.class_date.desc())
     query = query.offset((page - 1) * per_page).limit(per_page)
-    result = await db.execute(query)
-    records = result.scalars().all()
+    records = (await db.execute(query)).scalars().all()
 
-    return AttendanceListOut(
-        attendance_records=records,
-        total=total,
-        page=page,
-        per_page=per_page,
+    return AttendanceListOut(attendance_records=records, total=total, page=page, per_page=per_page)
+
+
+@router.get("/my/summary")
+async def get_my_attendance_summary(
+    section_id: int | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get attendance summary for the current student."""
+    student = await db.scalar(
+        select(Student).where(Student.student_id == current_user.user_id)
     )
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
 
+    query = (
+        select(Attendance.attendance_status, func.count(Attendance.attendance_id))
+        .where(Attendance.student_id == student.student_id)
+    )
+    if section_id:
+        query = query.where(Attendance.section_id == section_id)
+    query = query.group_by(Attendance.attendance_status)
+
+    rows = (await db.execute(query)).all()
+    summary = {row[0]: row[1] for row in rows}
+    total = sum(summary.values())
+    return {
+        "total_classes": total,
+        "present": summary.get("present", 0),
+        "absent": summary.get("absent", 0),
+        "late": summary.get("late", 0),
+        "excused": summary.get("excused", 0),
+        "attendance_rate": round((summary.get("present", 0) + summary.get("late", 0)) / total * 100, 1) if total > 0 else 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Single record
+# ---------------------------------------------------------------------------
 
 @router.get("/{attendance_id}", response_model=AttendanceOut)
 async def get_attendance_record(
@@ -155,9 +291,12 @@ async def get_attendance_record(
     current_user: User = Depends(get_current_user),
 ):
     """Get a single attendance record."""
-    attendance = await _get_attendance_or_404(db, attendance_id)
-    return attendance
+    return await _get_attendance_or_404(db, attendance_id)
 
+
+# ---------------------------------------------------------------------------
+# Create
+# ---------------------------------------------------------------------------
 
 @router.post("/", response_model=AttendanceOut, status_code=status.HTTP_201_CREATED)
 async def record_attendance(
@@ -165,44 +304,30 @@ async def record_attendance(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_teacher_or_admin),
 ):
-    """Record attendance for a student in a course section. Requires teacher or admin."""
-    # Validate student exists
-    student_result = await db.execute(
-        select(Student).where(Student.student_id == data.student_id)
-    )
-    student = student_result.scalar_one_or_none()
-    if not student:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found",
-        )
+    """Record attendance for a student. Validates no future dates."""
+    _validate_not_future(data.class_date)
 
-    # Validate section exists and get course name for notification
-    section_result = await db.execute(
-        select(CourseSection)
-        .options(selectinload(CourseSection.course))
+    student = await db.scalar(select(Student).where(Student.student_id == data.student_id))
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    section = await db.scalar(
+        select(CourseSection).options(selectinload(CourseSection.course))
         .where(CourseSection.section_id == data.section_id)
     )
-    section = section_result.scalar_one_or_none()
     if not section:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course section not found",
-        )
+        raise HTTPException(status_code=404, detail="Course section not found")
 
-    # Check for duplicate attendance record
-    dup_result = await db.execute(
+    # Check duplicate
+    dup = await db.scalar(
         select(Attendance).where(
             Attendance.section_id == data.section_id,
             Attendance.student_id == data.student_id,
             Attendance.class_date == data.class_date,
         )
     )
-    if dup_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Attendance already recorded for this student on this date",
-        )
+    if dup:
+        raise HTTPException(status_code=409, detail="Attendance already recorded for this student on this date")
 
     attendance = Attendance(
         section_id=data.section_id,
@@ -217,23 +342,33 @@ async def record_attendance(
     await db.flush()
     await db.refresh(attendance)
 
-    # Send notification to the student
+    # Notification
     course_name = section.course.course_name if section.course else None
-    status_label = attendance.attendance_status.replace("_", " ").title()
-    notif = Notification(
+    status_label = data.attendance_status.replace("_", " ").title()
+    db.add(Notification(
         user_id=student.student_id,
         title="Attendance Recorded",
         message=f"Your attendance for {course_name or f'Section #{data.section_id}'} on {data.class_date} has been marked as: {status_label}.",
         notification_type="info" if data.attendance_status == "present" else "warning",
         reference_type="attendance",
         reference_id=str(attendance.attendance_id),
-    )
-    db.add(notif)
+    ))
+
+    # Sync enrollment percentage
+    await _sync_enrollment_attendance(db, data.section_id, data.student_id)
+
+    # Check absent alert
+    if data.attendance_status == "absent":
+        await _check_absent_alert(db, data.section_id, data.student_id, course_name)
 
     await db.commit()
     await db.refresh(attendance)
     return attendance
 
+
+# ---------------------------------------------------------------------------
+# Bulk create
+# ---------------------------------------------------------------------------
 
 @router.post("/bulk", response_model=AttendanceListOut, status_code=status.HTTP_201_CREATED)
 async def record_bulk_attendance(
@@ -241,99 +376,112 @@ async def record_bulk_attendance(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_teacher_or_admin),
 ):
-    """Record attendance for multiple students at once. Requires teacher or admin."""
+    """Record attendance for multiple students at once."""
     if not records:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No attendance records provided",
-        )
+        raise HTTPException(status_code=400, detail="No attendance records provided")
 
     section_id = records[0].section_id
     class_date = records[0].class_date
+    _validate_not_future(class_date)
 
-    # Validate section exists
-    section_result = await db.execute(
-        select(CourseSection)
-        .options(selectinload(CourseSection.course))
+    section = await db.scalar(
+        select(CourseSection).options(selectinload(CourseSection.course))
         .where(CourseSection.section_id == section_id)
     )
-    section = section_result.scalar_one_or_none()
     if not section:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course section not found",
-        )
+        raise HTTPException(status_code=404, detail="Course section not found")
 
     course_name = section.course.course_name if section.course else None
-    created_records = []
+    created = []
 
     for data in records:
-        # Validate section_id and class_date consistency
         if data.section_id != section_id or data.class_date != class_date:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="All records must have the same section_id and class_date",
-            )
+            raise HTTPException(status_code=400, detail="All records must have the same section_id and class_date")
 
-        # Check for duplicates
-        dup_result = await db.execute(
+        dup = await db.scalar(
             select(Attendance).where(
                 Attendance.section_id == data.section_id,
                 Attendance.student_id == data.student_id,
                 Attendance.class_date == data.class_date,
             )
         )
-        if dup_result.scalar_one_or_none():
-            continue  # Skip duplicates silently
+        if dup:
+            continue
 
-        # Get student's user_id for notification
-        student_result = await db.execute(
-            select(Student).where(Student.student_id == data.student_id)
-        )
-        student = student_result.scalar_one_or_none()
+        student = await db.scalar(select(Student).where(Student.student_id == data.student_id))
         if not student:
-            continue  # Skip invalid students
+            continue
 
-        attendance = Attendance(
-            section_id=data.section_id,
-            student_id=data.student_id,
-            class_date=data.class_date,
-            attendance_status=data.attendance_status,
-            arrival_time=data.arrival_time,
-            notes=data.notes,
+        att = Attendance(
+            section_id=data.section_id, student_id=data.student_id,
+            class_date=data.class_date, attendance_status=data.attendance_status,
+            arrival_time=data.arrival_time, notes=data.notes,
             recorded_by=current_user.user_id,
         )
-        db.add(attendance)
+        db.add(att)
         await db.flush()
-        await db.refresh(attendance)
-        created_records.append(attendance)
+        await db.refresh(att)
+        created.append(att)
 
-        # Send notification
-        status_label = attendance.attendance_status.replace("_", " ").title()
-        notif = Notification(
+        status_label = data.attendance_status.replace("_", " ").title()
+        db.add(Notification(
             user_id=student.student_id,
             title="Attendance Recorded",
             message=f"Your attendance for {course_name or f'Section #{data.section_id}'} on {data.class_date} has been marked as: {status_label}.",
             notification_type="info" if data.attendance_status == "present" else "warning",
             reference_type="attendance",
-            reference_id=str(attendance.attendance_id),
-        )
-        db.add(notif)
+            reference_id=str(att.attendance_id),
+        ))
+
+        await _sync_enrollment_attendance(db, data.section_id, data.student_id)
+        if data.attendance_status == "absent":
+            await _check_absent_alert(db, data.section_id, data.student_id, course_name)
 
     await db.commit()
-
-    # Refresh all created records
-    for i, rec in enumerate(created_records):
+    for rec in created:
         await db.refresh(rec)
-        created_records[i] = rec
 
-    return AttendanceListOut(
-        attendance_records=created_records,
-        total=len(created_records),
-        page=1,
-        per_page=len(created_records),
-    )
+    return AttendanceListOut(attendance_records=created, total=len(created), page=1, per_page=len(created) or 1)
 
+
+# ---------------------------------------------------------------------------
+# Bulk update
+# ---------------------------------------------------------------------------
+
+@router.put("/bulk", response_model=AttendanceListOut)
+async def bulk_update_attendance(
+    updates: list[AttendanceUpdate],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_teacher_or_admin),
+):
+    """Bulk update attendance records. Each item must include attendance_id."""
+    updated = []
+    for data in updates:
+        if not data.attendance_id:
+            continue
+        att = await db.scalar(
+            select(Attendance).where(Attendance.attendance_id == data.attendance_id)
+        )
+        if not att:
+            continue
+        fields = data.model_dump(exclude_unset=True, exclude={"attendance_id"})
+        for k, v in fields.items():
+            setattr(att, k, v)
+        updated.append(att)
+
+        # Sync percentage
+        await _sync_enrollment_attendance(db, att.section_id, att.student_id)
+
+    await db.commit()
+    for rec in updated:
+        await db.refresh(rec)
+
+    return AttendanceListOut(attendance_records=updated, total=len(updated), page=1, per_page=len(updated) or 1)
+
+
+# ---------------------------------------------------------------------------
+# Update / Delete
+# ---------------------------------------------------------------------------
 
 @router.put("/{attendance_id}", response_model=AttendanceOut)
 async def update_attendance(
@@ -342,13 +490,13 @@ async def update_attendance(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_teacher_or_admin),
 ):
-    """Update an attendance record. Requires teacher or admin."""
+    """Update an attendance record."""
     attendance = await _get_attendance_or_404(db, attendance_id)
+    fields = data.model_dump(exclude_unset=True, exclude={"attendance_id"})
+    for k, v in fields.items():
+        setattr(attendance, k, v)
 
-    update_fields = data.model_dump(exclude_unset=True)
-    for field, value in update_fields.items():
-        setattr(attendance, field, value)
-
+    await _sync_enrollment_attendance(db, attendance.section_id, attendance.student_id)
     await db.commit()
     await db.refresh(attendance)
     return attendance
@@ -360,16 +508,16 @@ async def delete_attendance(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
-    """Delete an attendance record. Requires admin."""
+    """Delete an attendance record."""
     attendance = await _get_attendance_or_404(db, attendance_id)
+    section_id, student_id = attendance.section_id, attendance.student_id
 
-    # Delete associated notifications
     await db.execute(
         delete(Notification).where(
             Notification.reference_type == "attendance",
             Notification.reference_id == str(attendance_id),
         )
     )
-
     await db.delete(attendance)
+    await _sync_enrollment_attendance(db, section_id, student_id)
     await db.commit()

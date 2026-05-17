@@ -1,358 +1,325 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 import {
   getSectionAttendance,
+  getSectionAttendanceSummary,
   getSectionEnrollments,
   recordBulkAttendance,
   getSections,
   getFacultySections,
+  deleteAttendance,
 } from '../../services/api.js'
 import { useAuthStore } from '../../stores/auth.js'
+import { useToast } from '../../composables/useToast.js'
 
-const route = useRoute()
-const router = useRouter()
 const authStore = useAuthStore()
+const toast = useToast()
 
 const loading = ref(false)
 const saving = ref(false)
 const sections = ref([])
-const selectedSectionId = ref(route.query.section_id || '')
+const selectedSectionId = ref('')
 const selectedDate = ref(new Date().toISOString().split('T')[0])
 const attendanceRecords = ref([])
-const error = ref('')
-const success = ref('')
+const summaryData = ref(null)
+const showSummary = ref(false)
+
+const statuses = ['present', 'absent', 'late', 'excused']
+const statusConfig = {
+  present: { label: 'P', color: 'bg-emerald-100 text-emerald-700 border-emerald-300', dot: 'bg-emerald-500' },
+  absent: { label: 'A', color: 'bg-red-100 text-red-700 border-red-300', dot: 'bg-red-500' },
+  late: { label: 'L', color: 'bg-amber-100 text-amber-700 border-amber-300', dot: 'bg-amber-500' },
+  excused: { label: 'E', color: 'bg-blue-100 text-blue-700 border-blue-300', dot: 'bg-blue-500' },
+}
 
 const sectionOptions = computed(() =>
-  sections.value.map((s) => ({
+  sections.value.map(s => ({
     value: s.section_id,
-    label: `${s.course?.course_code || 'N/A'} - ${s.course?.course_name || 'Section'} (Sec ${s.section_number})`,
+    label: `${s.course?.course_code || ''} - ${s.course?.course_name || 'Section'} (Sec ${s.section_number})`,
   }))
 )
 
-const statuses = ['present', 'absent', 'late', 'excused', 'holiday']
+const counts = computed(() => {
+  const c = { present: 0, absent: 0, late: 0, excused: 0, unmarked: 0 }
+  attendanceRecords.value.forEach(r => {
+    if (r._status && c[r._status] !== undefined) c[r._status]++
+    else c.unmarked++
+  })
+  return c
+})
 
-const statusColors = {
-  present: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-  absent: 'bg-red-100 text-red-800 border-red-300',
-  late: 'bg-amber-100 text-amber-800 border-amber-300',
-  excused: 'bg-blue-100 text-blue-800 border-blue-300',
-  holiday: 'bg-purple-100 text-purple-800 border-purple-300',
-}
-
-const presentCount = computed(() =>
-  attendanceRecords.value.filter((r) => r.attendance_status === 'present').length
-)
-const absentCount = computed(() =>
-  attendanceRecords.value.filter((r) => r.attendance_status === 'absent').length
-)
-const lateCount = computed(() =>
-  attendanceRecords.value.filter((r) => r.attendance_status === 'late').length
-)
-const excusedCount = computed(() =>
-  attendanceRecords.value.filter((r) => r.attendance_status === 'excused').length
-)
+const allMarked = computed(() => attendanceRecords.value.every(r => r._status))
 
 async function loadSections() {
   try {
-    const isAdmin = authStore.userRole === 'admin' || authStore.userRole === 'super-admin'
-    const res = isAdmin
-      ? await getSections(0, 200)
-      : await getFacultySections('me')
+    const isAdmin = ['admin', 'super-admin'].includes(authStore.userRole)
+    const res = isAdmin ? await getSections(0, 200) : await getFacultySections('me')
     sections.value = res.data.sections || res.data
-  } catch {
-    error.value = 'Failed to load sections'
-  }
+  } catch { /* ignore */ }
 }
 
 async function loadAttendance() {
-  if (!selectedSectionId.value || !selectedDate.value) return
+  if (!selectedSectionId.value) return
   loading.value = true
-  error.value = ''
   try {
-    const res = await getSectionAttendance(selectedSectionId.value, {
-      class_date: selectedDate.value,
-      per_page: 200,
-    })
-    // If no records exist yet, show students from section enrollments as unmarked
+    const res = await getSectionAttendance(selectedSectionId.value, { class_date: selectedDate.value, per_page: 200 })
     if (res.data.attendance_records?.length > 0) {
-      attendanceRecords.value = res.data.attendance_records.map((r) => ({
-        ...r,
-        _status: r.attendance_status,
-      }))
+      attendanceRecords.value = res.data.attendance_records.map(r => ({ ...r, _status: r.attendance_status }))
     } else {
-      // Load enrollments to show all students
-      const enrollRes = await getSectionEnrollments(selectedSectionId.value)
-      attendanceRecords.value = (enrollRes.data?.enrollments || []).map((e) => ({
+      const enrollRes = await getSectionEnrollments(selectedSectionId.value, null, 0, 200)
+      attendanceRecords.value = (enrollRes.data?.enrollments || []).map(e => ({
         student_id: e.student_id,
-        student_name: e.student?.user?.full_name || e.student?.user?.username || 'Unknown',
+        student_name: e.student?.user?.username || 'Unknown',
         student_number: e.student?.student_number || '',
         attendance_id: null,
-        class_date: selectedDate.value,
-        attendance_status: '',
         _status: '',
         arrival_time: null,
         notes: null,
       }))
     }
-  } catch (e) {
-    error.value = 'Failed to load attendance records'
-    console.error(e)
+  } catch {
+    toast.error('Failed to load attendance')
   } finally {
     loading.value = false
   }
 }
 
-function setAllStatus(status) {
-  attendanceRecords.value.forEach((r) => {
-    r._status = status
-  })
+async function loadSummary() {
+  if (!selectedSectionId.value) return
+  try {
+    const res = await getSectionAttendanceSummary(selectedSectionId.value)
+    summaryData.value = res.data
+    showSummary.value = true
+  } catch {
+    toast.error('Failed to load summary')
+  }
 }
 
-function toggleStatus(record) {
-  const statusOrder = ['present', 'absent', 'late', 'excused']
-  const idx = statusOrder.indexOf(record._status)
-  record._status = statusOrder[(idx + 1) % statusOrder.length]
+function setAllStatus(status) {
+  attendanceRecords.value.forEach(r => { r._status = status })
 }
 
 async function saveAttendance() {
+  const records = attendanceRecords.value
+    .filter(r => r._status)
+    .map(r => ({
+      section_id: Number(selectedSectionId.value),
+      student_id: r.student_id,
+      class_date: selectedDate.value,
+      attendance_status: r._status,
+      arrival_time: r.arrival_time || null,
+      notes: r.notes || null,
+    }))
+  if (!records.length) { toast.warning('No statuses selected'); return }
   saving.value = true
-  error.value = ''
-  success.value = ''
   try {
-    const records = attendanceRecords.value
-      .filter((r) => r._status)
-      .map((r) => ({
-        section_id: Number(selectedSectionId.value),
-        student_id: r.student_id,
-        class_date: selectedDate.value,
-        attendance_status: r._status,
-        arrival_time: r.arrival_time || null,
-        notes: r.notes || null,
-      }))
-
-    if (records.length === 0) {
-      error.value = 'No attendance statuses selected'
-      saving.value = false
-      return
-    }
-
     await recordBulkAttendance(records)
-    success.value = `Saved attendance for ${records.length} student(s)`
+    toast.success(`Saved attendance for ${records.length} student(s)`)
     await loadAttendance()
   } catch (e) {
-    error.value = e.response?.data?.detail || 'Failed to save attendance'
+    toast.error(e.response?.data?.detail || 'Failed to save')
   } finally {
     saving.value = false
   }
 }
 
+function prevDate() {
+  const d = new Date(selectedDate.value)
+  d.setDate(d.getDate() - 1)
+  selectedDate.value = d.toISOString().split('T')[0]
+}
+function nextDate() {
+  const d = new Date(selectedDate.value)
+  d.setDate(d.getDate() + 1)
+  const today = new Date().toISOString().split('T')[0]
+  const next = d.toISOString().split('T')[0]
+  if (next <= today) selectedDate.value = next
+}
+
 onMounted(async () => {
   await loadSections()
-  if (selectedSectionId.value) {
-    await loadAttendance()
-  }
+  if (selectedSectionId.value) await loadAttendance()
 })
-
-watch(selectedSectionId, () => {
-  if (selectedSectionId.value) loadAttendance()
-})
-
-watch(selectedDate, () => {
-  if (selectedSectionId.value) loadAttendance()
-})
+watch(selectedSectionId, () => { if (selectedSectionId.value) loadAttendance() })
+watch(selectedDate, () => { if (selectedSectionId.value) loadAttendance() })
 </script>
 
 <template>
   <div class="max-w-6xl mx-auto">
-    <div class="mb-6">
-      <div class="flex items-center justify-between mb-2">
-        <h1 class="text-2xl font-bold text-ink">Attendance Management</h1>
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-[1.75rem] font-bold text-ink tracking-tight">Attendance</h1>
+        <p class="text-sm text-ink-muted mt-0.5">Record and manage student attendance</p>
       </div>
-      <p class="text-ink-muted text-sm">Record and manage student attendance for your course sections.</p>
-    </div>
-
-    <!-- Filters -->
-    <div class="bg-surface rounded-xl shadow-sm border border-border p-5 mb-6">
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div>
-          <label class="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Section</label>
-          <select
-            v-model="selectedSectionId"
-            class="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-          >
-            <option value="">Select a section...</option>
-            <option v-for="opt in sectionOptions" :key="opt.value" :value="opt.value">
-              {{ opt.label }}
-            </option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Class Date</label>
-          <input
-            v-model="selectedDate"
-            type="date"
-            class="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-          />
-        </div>
-        <div class="flex items-end gap-2">
-          <button
-            @click="loadAttendance"
-            :disabled="!selectedSectionId || loading"
-            class="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {{ loading ? 'Loading...' : 'Refresh' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick Actions -->
-    <div v-if="attendanceRecords.length > 0" class="flex flex-wrap items-center gap-2 mb-4">
-      <span class="text-xs font-semibold text-ink-muted uppercase mr-1">Quick Fill:</span>
-      <button
-        v-for="status in statuses"
-        :key="status"
-        @click="setAllStatus(status)"
-        class="px-3 py-1 rounded-lg text-xs font-medium border transition-colors"
-        :class="statusColors[status] || 'bg-gray-100 text-gray-700 border-gray-300'"
-      >
-        {{ status.charAt(0).toUpperCase() + status.slice(1) }}
+      <button v-if="selectedSectionId" @click="loadSummary"
+        class="px-4 py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/15 transition-colors">
+        View Summary
       </button>
     </div>
 
-    <!-- Summary Stats -->
-    <div v-if="attendanceRecords.length > 0" class="flex flex-wrap gap-4 mb-4">
-      <div class="px-3 py-1.5 rounded-lg bg-gray-50 border border-border text-sm">
-        <span class="text-ink-muted">Present:</span>
-        <span class="font-semibold text-emerald-700 ml-1">{{ presentCount }}</span>
-      </div>
-      <div class="px-3 py-1.5 rounded-lg bg-gray-50 border border-border text-sm">
-        <span class="text-ink-muted">Absent:</span>
-        <span class="font-semibold text-red-700 ml-1">{{ absentCount }}</span>
-      </div>
-      <div class="px-3 py-1.5 rounded-lg bg-gray-50 border border-border text-sm">
-        <span class="text-ink-muted">Late:</span>
-        <span class="font-semibold text-amber-700 ml-1">{{ lateCount }}</span>
-      </div>
-      <div class="px-3 py-1.5 rounded-lg bg-gray-50 border border-border text-sm">
-        <span class="text-ink-muted">Excused:</span>
-        <span class="font-semibold text-blue-700 ml-1">{{ excusedCount }}</span>
+    <!-- Section & Date Selector -->
+    <div class="bg-surface rounded-xl border border-border-light p-5 mb-5" style="box-shadow: var(--shadow-card)">
+      <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4">
+        <div>
+          <label class="block text-[0.7rem] font-bold text-ink-muted uppercase tracking-wider mb-1.5">Section</label>
+          <select v-model="selectedSectionId"
+            class="w-full rounded-lg border-[1.5px] border-border-medium bg-surface px-3 py-2.5 text-sm text-ink font-medium focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all">
+            <option value="">Select a section...</option>
+            <option v-for="opt in sectionOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[0.7rem] font-bold text-ink-muted uppercase tracking-wider mb-1.5">Date</label>
+          <div class="flex items-center gap-1">
+            <button @click="prevDate" class="p-2.5 rounded-lg border border-border-light hover:bg-page transition-colors">
+              <svg class="w-4 h-4 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <input v-model="selectedDate" type="date"
+              class="rounded-lg border-[1.5px] border-border-medium bg-surface px-3 py-2.5 text-sm text-ink font-medium focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all" />
+            <button @click="nextDate" class="p-2.5 rounded-lg border border-border-light hover:bg-page transition-colors">
+              <svg class="w-4 h-4 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Status Messages -->
-    <div v-if="error" class="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-      {{ error }}
-    </div>
-    <div v-if="success" class="mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
-      {{ success }}
+    <!-- Quick Fill & Stats Bar -->
+    <div v-if="attendanceRecords.length > 0" class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div class="flex items-center gap-2">
+        <span class="text-[0.7rem] font-bold text-ink-muted uppercase tracking-wider">Mark All:</span>
+        <button v-for="s in statuses" :key="s" @click="setAllStatus(s)"
+          class="px-2.5 py-1 rounded-md text-xs font-semibold border transition-all hover:scale-105"
+          :class="statusConfig[s].color">
+          {{ s.charAt(0).toUpperCase() + s.slice(1) }}
+        </button>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="font-semibold">{{ counts.present }}</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500"></span><span class="font-semibold">{{ counts.absent }}</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="font-semibold">{{ counts.late }}</span></span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span class="font-semibold">{{ counts.excused }}</span></span>
+        <span v-if="counts.unmarked" class="text-ink-muted">{{ counts.unmarked }} unmarked</span>
+      </div>
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="text-center py-12">
-      <div class="inline-block w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-3"></div>
-      <p class="text-ink-muted text-sm">Loading attendance records...</p>
+    <div v-if="loading" class="flex flex-col items-center justify-center py-16">
+      <div class="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin mb-3"></div>
+      <p class="text-sm text-ink-muted">Loading...</p>
     </div>
 
-    <!-- Attendance Table -->
-    <div v-else-if="attendanceRecords.length > 0" class="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
+    <!-- Attendance List -->
+    <div v-else-if="attendanceRecords.length > 0" class="bg-surface rounded-xl border border-border-light overflow-hidden" style="box-shadow: var(--shadow-card)">
       <div class="overflow-x-auto">
-        <table class="w-full">
+        <table class="w-full min-w-[600px]">
           <thead>
-            <tr class="bg-gray-50 border-b border-border">
-              <th class="text-left px-4 py-3 text-xs font-semibold text-ink-muted uppercase tracking-wide w-12">
-                #
-              </th>
-              <th class="text-left px-4 py-3 text-xs font-semibold text-ink-muted uppercase tracking-wide">
-                Student
-              </th>
-              <th class="text-left px-4 py-3 text-xs font-semibold text-ink-muted uppercase tracking-wide">
-                ID
-              </th>
-              <th class="text-center px-4 py-3 text-xs font-semibold text-ink-muted uppercase tracking-wide w-40">
-                Status
-              </th>
-              <th class="text-left px-4 py-3 text-xs font-semibold text-ink-muted uppercase tracking-wide w-24">
-                Arrival
-              </th>
-              <th class="text-left px-4 py-3 text-xs font-semibold text-ink-muted uppercase tracking-wide">
-                Notes
-              </th>
+            <tr class="border-b-2 border-border-medium bg-page">
+              <th class="text-left py-3 px-4 text-[0.7rem] font-bold text-ink-muted uppercase tracking-wider w-10">#</th>
+              <th class="text-left py-3 px-4 text-[0.7rem] font-bold text-ink-muted uppercase tracking-wider">Student</th>
+              <th class="text-center py-3 px-4 text-[0.7rem] font-bold text-ink-muted uppercase tracking-wider">Status</th>
+              <th class="text-left py-3 px-4 text-[0.7rem] font-bold text-ink-muted uppercase tracking-wider w-28">Time</th>
+              <th class="text-left py-3 px-4 text-[0.7rem] font-bold text-ink-muted uppercase tracking-wider">Notes</th>
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="(record, idx) in attendanceRecords"
-              :key="record.student_id"
-              class="border-b border-border last:border-b-0 hover:bg-gray-50/50 transition-colors"
-            >
-              <td class="px-4 py-3 text-sm text-ink-muted">{{ idx + 1 }}</td>
-              <td class="px-4 py-3">
-                <span class="text-sm font-medium text-ink">{{ record.student_name }}</span>
+            <tr v-for="(record, idx) in attendanceRecords" :key="record.student_id"
+              class="border-b border-border-light last:border-b-0 transition-colors"
+              :class="record._status === 'absent' ? 'bg-red-50/40' : record._status === 'present' ? 'bg-emerald-50/30' : ''">
+              <td class="py-3 px-4 text-sm text-ink-muted">{{ idx + 1 }}</td>
+              <td class="py-3 px-4">
+                <div class="font-medium text-sm text-ink">{{ record.student_name }}</div>
+                <div v-if="record.student_number" class="text-xs text-ink-muted">{{ record.student_number }}</div>
               </td>
-              <td class="px-4 py-3 text-sm text-ink-muted">{{ record.student_number || '—' }}</td>
-              <td class="px-4 py-3 text-center">
+              <td class="py-3 px-4">
                 <div class="flex items-center justify-center gap-1">
-                  <button
-                    v-for="status in statuses"
-                    :key="status"
-                    @click="record._status = status"
-                    class="px-2 py-0.5 rounded text-[0.7rem] font-medium border transition-all"
-                    :class="record._status === status
-                      ? (statusColors[status] || 'bg-gray-200 text-gray-800 border-gray-400')
-                      : 'bg-transparent text-gray-400 border-gray-200 hover:border-gray-300'"
-                  >
-                    {{ status === 'present' ? 'P' : status === 'absent' ? 'A' : status === 'late' ? 'L' : status === 'excused' ? 'E' : 'H' }}
+                  <button v-for="s in statuses" :key="s" @click="record._status = s"
+                    class="w-8 h-8 rounded-lg text-xs font-bold border-[1.5px] transition-all"
+                    :class="record._status === s ? statusConfig[s].color + ' scale-110 shadow-sm' : 'bg-transparent text-ink-muted border-border-light hover:border-border-medium'">
+                    {{ statusConfig[s].label }}
                   </button>
                 </div>
               </td>
-              <td class="px-4 py-3">
-                <input
-                  v-model="record.arrival_time"
-                  type="time"
-                  class="w-full rounded border border-border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary"
-                />
+              <td class="py-3 px-4">
+                <input v-model="record.arrival_time" type="time"
+                  class="w-full rounded-md border border-border-light px-2 py-1.5 text-xs text-ink focus:outline-none focus:border-primary" />
               </td>
-              <td class="px-4 py-3">
-                <input
-                  v-model="record.notes"
-                  type="text"
-                  placeholder="Optional notes..."
-                  class="w-full rounded border border-border px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary"
-                />
+              <td class="py-3 px-4">
+                <input v-model="record.notes" type="text" placeholder="Notes..."
+                  class="w-full rounded-md border border-border-light px-2 py-1.5 text-xs text-ink focus:outline-none focus:border-primary" />
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <!-- Save Bar -->
+      <div class="flex items-center justify-between px-5 py-4 bg-page border-t border-border-light">
+        <span class="text-sm text-ink-muted">{{ attendanceRecords.length }} students</span>
+        <button @click="saveAttendance" :disabled="saving || !allMarked"
+          class="px-6 py-2.5 bg-primary text-ink-inverse rounded-xl text-sm font-semibold hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all inline-flex items-center gap-2">
+          <svg v-if="saving" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          {{ saving ? 'Saving...' : 'Save Attendance' }}
+        </button>
+      </div>
     </div>
 
-    <!-- No Data -->
-    <div v-else-if="selectedSectionId" class="text-center py-12 bg-surface rounded-xl shadow-sm border border-border">
+    <!-- Empty States -->
+    <div v-else-if="selectedSectionId && !loading" class="bg-surface rounded-xl border border-border-light p-12 text-center" style="box-shadow: var(--shadow-card)">
       <div class="text-4xl mb-3">📋</div>
-      <p class="text-ink-muted text-sm">No students found for this section. Enroll students first.</p>
+      <p class="text-ink-muted text-sm">No students enrolled in this section yet.</p>
+    </div>
+    <div v-else-if="!selectedSectionId" class="bg-surface rounded-xl border border-border-light p-12 text-center" style="box-shadow: var(--shadow-card)">
+      <div class="text-4xl mb-3">👆</div>
+      <p class="text-ink font-medium mb-1">Select a Section</p>
+      <p class="text-ink-muted text-sm">Choose a section above to start recording attendance.</p>
     </div>
 
-    <!-- Select Prompt -->
-    <div v-else class="text-center py-12 bg-surface rounded-xl shadow-sm border border-border">
-      <div class="text-4xl mb-3">📊</div>
-      <p class="text-ink-muted text-sm">Select a section and date to manage attendance.</p>
-    </div>
-
-    <!-- Save Button -->
-    <div v-if="attendanceRecords.length > 0" class="mt-6 flex justify-end">
-      <button
-        @click="saveAttendance"
-        :disabled="saving"
-        class="px-6 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-      >
-        <svg v-if="saving" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-        </svg>
-        {{ saving ? 'Saving...' : 'Save Attendance' }}
-      </button>
+    <!-- Summary Modal -->
+    <div v-if="showSummary && summaryData" class="admin-modal-overlay" @click.self="showSummary = false">
+      <div class="admin-modal admin-modal-lg">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="!mb-0">Attendance Summary</h2>
+          <button @click="showSummary = false" class="p-1.5 rounded-lg hover:bg-page text-ink-muted">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="mb-4 flex items-center gap-4 text-sm">
+          <span class="text-ink-muted">{{ summaryData.course_name }}</span>
+          <span class="text-ink-muted">•</span>
+          <span class="text-ink-muted">{{ summaryData.total_sessions }} sessions recorded</span>
+        </div>
+        <div class="overflow-x-auto rounded-lg border border-border-light">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-page border-b border-border-medium">
+                <th class="text-left py-2.5 px-4 text-[0.7rem] font-bold text-ink-muted uppercase">Student</th>
+                <th class="text-center py-2.5 px-3 text-[0.7rem] font-bold text-emerald-700 uppercase">Present</th>
+                <th class="text-center py-2.5 px-3 text-[0.7rem] font-bold text-red-700 uppercase">Absent</th>
+                <th class="text-center py-2.5 px-3 text-[0.7rem] font-bold text-amber-700 uppercase">Late</th>
+                <th class="text-center py-2.5 px-3 text-[0.7rem] font-bold text-blue-700 uppercase">Excused</th>
+                <th class="text-center py-2.5 px-3 text-[0.7rem] font-bold text-ink-muted uppercase">Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in summaryData.students" :key="s.student_id" class="border-b border-border-light last:border-b-0">
+                <td class="py-2.5 px-4 font-medium text-ink">{{ s.student_id.slice(0, 8) }}...</td>
+                <td class="py-2.5 px-3 text-center text-emerald-700 font-semibold">{{ s.present }}</td>
+                <td class="py-2.5 px-3 text-center text-red-700 font-semibold">{{ s.absent }}</td>
+                <td class="py-2.5 px-3 text-center text-amber-700 font-semibold">{{ s.late }}</td>
+                <td class="py-2.5 px-3 text-center text-blue-700 font-semibold">{{ s.excused }}</td>
+                <td class="py-2.5 px-3 text-center">
+                  <span class="inline-block px-2 py-0.5 rounded-full text-xs font-bold"
+                    :class="s.attendance_rate >= 80 ? 'bg-emerald-100 text-emerald-700' : s.attendance_rate >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'">
+                    {{ s.attendance_rate }}%
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </template>

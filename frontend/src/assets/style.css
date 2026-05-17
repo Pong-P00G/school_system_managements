@@ -60,7 +60,7 @@ body {
   @apply min-h-screen p-8 grid place-items-center bg-page;
 }
 .auth-card {
-  @apply w-full max-w-[440px] rounded-[1.25rem] border border-border-light bg-surface p-8;
+  @apply w-full max-w-110 rounded-[1.25rem] border border-border-light bg-surface p-8;
   box-shadow: var(--shadow-elevated);
 }
 .auth-label {
@@ -127,7 +127,7 @@ body {
 
 /* ─── Admin Table ─── */
 .admin-table {
-  @apply w-full border-collapse min-w-[600px];
+  @apply w-full border-collapse min-w-150;
 }
 .admin-table thead th {
   @apply text-left py-[0.85rem] px-5 text-[0.7rem] font-bold uppercase tracking-wider text-ink-muted border-b-2 border-border-medium bg-page;
@@ -345,6 +345,6 @@ body {
 
 @media (min-width: 640px) and (max-width: 1023px) {
   .admin-table {
-    @apply min-w-[500px];
+    @apply min-w-125;
   }
 }

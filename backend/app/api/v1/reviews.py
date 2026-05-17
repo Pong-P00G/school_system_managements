@@ -80,7 +80,7 @@ async def list_reviewable_enrollments(
         raise HTTPException(status_code=404, detail="Student profile not found")
 
     # Fetch eligible enrollments
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc).replace(tzinfo=None).date()
     result = await db.execute(
         select(Enrollment)
         .options(
@@ -266,7 +266,7 @@ async def create_review(
     if not section:
         raise HTTPException(status_code=400, detail="Section not found for this enrollment")
     term = section.term
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc).replace(tzinfo=None).date()
     if enrollment.enrollment_status == "enrolled" and term and term.end_date and term.end_date > now:
         raise HTTPException(
             status_code=400,

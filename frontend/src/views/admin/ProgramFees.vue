@@ -15,6 +15,25 @@ const error = ref('')
 const showModal = ref(false)
 const editingProgramId = ref(null)
 
+// Selection state
+const selectedIds = ref(new Set())
+const selectAll = () => {
+    if (selectedIds.value.size === programs.value.length) {
+        selectedIds.value = new Set()
+    } else {
+        selectedIds.value = new Set(programs.value.map(p => p.program_id))
+    }
+}
+const toggleSelect = (id) => {
+    const next = new Set(selectedIds.value)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    selectedIds.value = next
+}
+
+// Bulk delete state
+const showBulkDeleteDialog = ref(false)
+const bulkDeleting = ref(false)
+
 // Delete state
 const showDeleteDialog = ref(false)
 const deletingProgramId = ref(null)
@@ -29,12 +48,6 @@ const form = ref({
     duration_years: 0,
 })
 
-// Auto-calculate total when fee_per_year or duration changes
-// We use a watcher or computed. 
-// However, since we want to allow manual override of total, we should probably just update it when inputs change, 
-// but not force it if user manually edits total? 
-// The user request "fix program fee" implies they want the calculation working.
-// I'll make it so changing per_year or duration updates program_fee.
 watch(() => [form.value.fee_per_year, form.value.duration_years], ([newFee, newDuration]) => {
     form.value.program_fee = (Number(newFee) || 0) * (Number(newDuration) || 0)
 })
@@ -111,6 +124,30 @@ const executeDeleteProgram = async () => {
     }
 }
 
+const deleteSelectedPrograms = async () => {
+    bulkDeleting.value = true
+    showBulkDeleteDialog.value = false
+    const ids = [...selectedIds.value]
+    let successCount = 0
+    let failCount = 0
+    for (const id of ids) {
+        try {
+            await deleteProgram(id)
+            successCount++
+        } catch {
+            failCount++
+        }
+    }
+    selectedIds.value = new Set()
+    await loadPrograms()
+    if (failCount > 0) {
+        toast.warning(`Deleted ${successCount} program(s), ${failCount} failed`)
+    } else {
+        toast.success(`Deleted ${successCount} program(s)`)
+    }
+    bulkDeleting.value = false
+}
+
 onMounted(loadPrograms)
 </script>
 
@@ -132,9 +169,18 @@ onMounted(loadPrograms)
             <div class="border-b bg-gray-50 px-6 py-3 text-sm text-gray-500">
                 {{ totalRecords }} program(s)
             </div>
+            <div v-if="selectedIds.size > 0" class="admin-bulk-actions">
+                <span class="bulk-count">{{ selectedIds.size }} selected</span>
+                <button class="admin-btn-delete-selected" :disabled="bulkDeleting" @click="showBulkDeleteDialog = true">
+                    {{ bulkDeleting ? 'Deleting...' : 'Delete Selected' }}
+                </button>
+            </div>
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
+                        <th class="th-checkbox">
+                            <input type="checkbox" :checked="programs.length > 0 && selectedIds.size === programs.length" @change="selectAll" />
+                        </th>
                         <th class="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Code</th>
                         <th class="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Name</th>
                         <th class="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Degree</th>
@@ -145,7 +191,10 @@ onMounted(loadPrograms)
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 bg-white">
-                    <tr v-for="program in programs" :key="program.program_id">
+                    <tr v-for="program in programs" :key="program.program_id" :class="{ 'row-selected': selectedIds.has(program.program_id) }">
+                        <td class="td-checkbox">
+                            <input type="checkbox" :checked="selectedIds.has(program.program_id)" @change="toggleSelect(program.program_id)" />
+                        </td>
                         <td class="px-6 py-4 text-sm font-medium text-indigo-700">{{ program.program_code }}</td>
                         <td class="px-6 py-4 text-sm text-slate-800">{{ program.program_name }}</td>
                         <td class="px-6 py-4 text-sm text-slate-600">{{ program.degree_level }}</td>
@@ -226,5 +275,18 @@ onMounted(loadPrograms)
             @forceConfirm="executeDeleteProgram"
             @cancel="showDeleteDialog = false"
         />
+
+        <div v-if="showBulkDeleteDialog" class="admin-modal-overlay" @click.self="showBulkDeleteDialog = false">
+            <div class="admin-modal admin-modal-sm">
+                <h2>Delete {{ selectedIds.size }} Program(s)</h2>
+                <p class="text-ink-muted mb-4">Are you sure you want to delete {{ selectedIds.size }} selected program(s)? This action cannot be undone.</p>
+                <div class="admin-form-actions">
+                    <button type="button" class="admin-btn-cancel" @click="showBulkDeleteDialog = false">Cancel</button>
+                    <button :disabled="bulkDeleting" class="admin-btn-delete-selected" @click="deleteSelectedPrograms">
+                        {{ bulkDeleting ? 'Deleting...' : 'Delete All' }}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>

@@ -57,6 +57,7 @@ const routes = [
           const role = store.userRole
           if (role === 'student') return '/student/dashboard'
           if (role === 'teacher') return '/teacher/dashboard'
+          if (role === 'Professor') return '/teacher/dashboard'
           return '/dashboard'
       } catch (e) {
           return '/dashboard'
@@ -227,7 +228,7 @@ const routes = [
   {
     path: '/teacher',
     component: () => import('../layouts/PortalLayout.vue'),
-    meta: { requiresAuth: true, roles: ['teacher'] },
+    meta: { requiresAuth: true, roles: ['teacher', 'professor'] },
     children: [
       { 
         path: 'dashboard', 
