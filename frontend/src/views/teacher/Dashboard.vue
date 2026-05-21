@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '../../stores/auth'
-import { getFacultyProfile, getFacultySections } from '../../services/api.js'
+import { getFacultyProfile, getFacultySections, getPendingGrading } from '../../services/api.js'
 import Icons from '../../components/icon/Icons.vue'
 
 const authStore = useAuthStore()
@@ -15,22 +15,20 @@ const title = computed(() => teacherInfo.value?.faculty_rank || 'Faculty Member'
 const totalStudents = computed(() => mySections.value.reduce((total, sec) => total + (sec.enrolled_count || 0), 0))
 const activeCourses = computed(() => mySections.value.length)
 
-const pendingTasks = ref([
-  { type: 'Grading', item: 'CS201 - Assignment 3', due: '2025-02-18' },
-  { type: 'Grading', item: 'CS301 - Quiz 5', due: '2025-02-19' },
-  { type: 'Grade Entry', item: 'CS401 - Midterm Exams', due: '2025-02-20' },
-])
+const pendingTasks = ref([])
 
 onMounted(async () => {
   if (!authStore.user?.user_id) { loading.value = false; return }
   loading.value = true
   try {
-    const [facultyRes, sectionsRes] = await Promise.allSettled([
+    const [facultyRes, sectionsRes, pendingRes] = await Promise.allSettled([
       getFacultyProfile(),
-      getFacultySections('me')
+      getFacultySections('me'),
+      getPendingGrading(),
     ])
     if (facultyRes.status === 'fulfilled') teacherInfo.value = facultyRes.value.data
     if (sectionsRes.status === 'fulfilled') mySections.value = sectionsRes.value.data.sections || []
+    if (pendingRes.status === 'fulfilled') pendingTasks.value = pendingRes.value.data.pending || []
   } catch (error) {
     console.error('Error fetching teacher data:', error)
   } finally {
@@ -137,7 +135,7 @@ onMounted(async () => {
         <h3 class="text-base font-semibold text-ink">Pending Tasks</h3>
       </div>
       <div>
-        <div v-for="task in pendingTasks" :key="task.item"
+        <div v-for="task in pendingTasks" :key="task.enrollment_id"
           class="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-4 border-b border-border-light last:border-b-0 hover:bg-primary/0.25 transition-colors gap-2 sm:gap-0">
           <div class="flex items-center gap-3">
             <div
@@ -145,11 +143,14 @@ onMounted(async () => {
               <Icons name="mdi-clipboard-text-clock" />
             </div>
             <div>
-              <p class="font-medium text-sm text-ink">{{ task.item }}</p>
-              <p class="text-xs text-ink-muted mt-0.5">{{ task.type }}</p>
+              <p class="font-medium text-sm text-ink">{{ task.course_code }} — {{ task.course_name }}</p>
+              <p class="text-xs text-ink-muted mt-0.5">Pending Grade</p>
             </div>
           </div>
-          <span class="px-3 py-1 rounded-full text-xs font-medium bg-error/10 text-error">Due: {{ task.due }}</span>
+        </div>
+        <div v-if="pendingTasks.length === 0" class="text-center py-10 text-ink-muted">
+          <Icons name="mdi-check-circle-outline" class="w-10 h-10 mb-2" />
+          <p>No pending grading tasks.</p>
         </div>
       </div>
     </div>

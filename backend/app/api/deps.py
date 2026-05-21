@@ -79,7 +79,7 @@ async def get_current_teacher_or_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:
     """Require the current user to have a teacher/faculty or admin role."""
-    allowed = {"admin", "teacher", "faculty", "super-admin"}
+    allowed = {"admin", "teacher", "faculty", "professor", "super-admin"}
     if not any(
         ra.role.role_name in allowed
         for ra in current_user.role_assignments

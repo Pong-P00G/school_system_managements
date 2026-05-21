@@ -301,7 +301,7 @@ router.beforeEach(async (to, _from, next) => {
   if ((to.path === '/login' || to.path === '/register') && authStore.isAuthenticated) {
     // Redirect based on role
     if (role === 'student') next('/student/dashboard')
-    else if (role === 'teacher') next('/teacher/dashboard')
+    else if (role === 'teacher' || role === 'professor') next('/teacher/dashboard')
     else next('/dashboard')
     return
   }

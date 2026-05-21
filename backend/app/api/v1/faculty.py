@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
-from app.models.people import Faculty, Assignment
+from app.models.people import Faculty, Assignment, Enrollment
 from app.models.user import User
 from app.models.academic import Department, CourseSection, Course
 from app.schemas.people import (
@@ -59,7 +59,48 @@ async def get_my_sections(
     return CourseSectionListOut(sections=sections, total=len(sections))
 
 
-@router.get("/{faculty_id}/assignments")
+@router.get("/me/pending-grading")
+async def get_my_pending_grading(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get enrollments in my sections that have no grade yet."""
+    # Get section IDs for this faculty
+    sections_result = await db.execute(
+        select(CourseSection.section_id).where(CourseSection.instructor_id == current_user.user_id)
+    )
+    section_ids = sections_result.scalars().all()
+    if not section_ids:
+        return {"pending": [], "total": 0}
+
+    # Get enrollments without grades
+    query = (
+        select(Enrollment)
+        .options(
+            selectinload(Enrollment.section).selectinload(CourseSection.course),
+        )
+        .where(
+            Enrollment.section_id.in_(section_ids),
+            Enrollment.enrollment_status == "enrolled",
+            Enrollment.grade.is_(None),
+        )
+    )
+    result = await db.execute(query)
+    enrollments = result.scalars().all()
+
+    pending = []
+    for e in enrollments:
+        course = e.section.course if e.section else None
+        pending.append({
+            "enrollment_id": e.enrollment_id,
+            "student_id": str(e.student_id),
+            "section_id": e.section_id,
+            "course_code": course.course_code if course else "",
+            "course_name": course.course_name if course else "",
+            "enrollment_date": e.enrollment_date,
+        })
+
+    return {"pending": pending, "total": len(pending)}
 async def get_faculty_assignments(
     faculty_id: UUID,
     db: AsyncSession = Depends(get_db),

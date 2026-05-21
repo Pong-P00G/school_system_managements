@@ -19,7 +19,7 @@ const unreadCount = ref(0)
 const loading = ref(false)
 const filterType = ref('all')
 const currentPage = ref(1)
-const pageSize = 20
+const pageSize = 50
 
 const typeColors = {
   info: '#3b82f6',
@@ -43,7 +43,54 @@ const typeLabels = {
   error: 'Error',
 }
 
+const selectedIds = ref(new Set())
+const selectionMode = ref(false)
+const allSelected = computed(() => notifications.value.length > 0 && notifications.value.every(n => selectedIds.value.has(n.notification_id)))
+const hasSelection = computed(() => selectedIds.value.size > 0)
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
+
+function toggleSelectAll() {
+  if (allSelected.value) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(notifications.value.map(n => n.notification_id))
+  }
+}
+
+function toggleSelect(id, event) {
+  event.stopPropagation()
+  const s = new Set(selectedIds.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  selectedIds.value = s
+}
+
+async function deleteSelected() {
+  const ids = [...selectedIds.value]
+  try {
+    await Promise.all(ids.map(id => deleteNotification(id)))
+    selectedIds.value = new Set()
+    toast.success(`${ids.length} notification(s) deleted`)
+    await loadNotifications()
+  } catch (err) {
+    console.error('Failed to delete selected:', err)
+    toast.error('Failed to delete selected notifications')
+  }
+}
+
+async function markSelectedAsRead() {
+  const ids = [...selectedIds.value]
+  try {
+    const unreadSelected = notifications.value.filter(n => ids.includes(n.notification_id) && !n.is_read)
+    await Promise.all(unreadSelected.map(n => markNotificationRead(n.notification_id)))
+    unreadSelected.forEach(n => (n.is_read = true))
+    unreadCount.value = Math.max(0, unreadCount.value - unreadSelected.length)
+    selectedIds.value = new Set()
+    toast.success(`${unreadSelected.length} notification(s) marked as read`)
+  } catch (err) {
+    console.error('Failed to mark selected as read:', err)
+    toast.error('Failed to mark selected as read')
+  }
+}
 
 async function loadNotifications() {
   loading.value = true
@@ -96,14 +143,8 @@ async function removeNotification(notification, event) {
   event.stopPropagation()
   try {
     await deleteNotification(notification.notification_id)
-    notifications.value = notifications.value.filter(
-      n => n.notification_id !== notification.notification_id
-    )
-    total.value = Math.max(0, total.value - 1)
-    if (!notification.is_read) {
-      unreadCount.value = Math.max(0, unreadCount.value - 1)
-    }
     toast.success('Notification deleted')
+    await loadNotifications()
   } catch (err) {
     console.error('Failed to delete notification:', err)
     toast.error('Failed to delete notification')
@@ -138,7 +179,7 @@ onMounted(loadNotifications)
 </script>
 
 <template>
-  <div class="max-w-[800px] mx-auto">
+  <div class="max-w-4xl mx-auto">
     <div class="flex items-start justify-between mb-6">
       <div>
         <h1 class="text-2xl font-bold text-gray-900 m-0 mb-1">Notifications</h1>
@@ -171,6 +212,21 @@ onMounted(loadNotifications)
       </button>
     </div>
 
+    <!-- Selection Bar -->
+    <div v-if="selectionMode && notifications.length > 0 && !loading" class="flex items-center gap-3 mb-3 py-2 px-4 bg-gray-50 rounded-lg">
+      <input type="checkbox" :checked="allSelected" @change="toggleSelectAll" class="w-4 h-4 cursor-pointer accent-blue-600" />
+      <span class="text-[13px] text-gray-600">{{ hasSelection ? `${selectedIds.size} selected` : 'Select all' }}</span>
+      <div v-if="hasSelection" class="flex gap-2 ml-auto">
+        <button class="inline-flex items-center gap-1 py-1.5 px-3 border-0 rounded-md text-[12px] font-medium cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors" @click="markSelectedAsRead">
+          Mark read
+        </button>
+        <button class="inline-flex items-center gap-1 py-1.5 px-3 border-0 rounded-md text-[12px] font-medium cursor-pointer bg-red-50 text-red-600 hover:bg-red-100 transition-colors" @click="deleteSelected">
+          Delete
+        </button>
+      </div>
+      <button class="ml-auto py-1 px-2 border-0 rounded-md text-[12px] text-gray-400 cursor-pointer bg-transparent hover:text-gray-600" :class="{ 'ml-0!': hasSelection }" @click="selectionMode = false; selectedIds = new Set()">Cancel</button>
+    </div>
+
     <!-- Loading State -->
     <div v-if="loading" class="flex flex-col items-center justify-center py-15 px-5 text-gray-400">
       <div class="w-8 h-8 border-3 border-gray-200 border-t-blue-600 rounded-full animate-spin mb-3"></div>
@@ -185,8 +241,10 @@ onMounted(loadNotifications)
         class="group flex gap-4 py-4 px-5 bg-white rounded-xl border cursor-pointer transition-all duration-200 relative"
         :class="notif.is_read ? 'border-gray-100 hover:border-gray-200 hover:shadow-sm' : 'bg-blue-50 border-blue-200 hover:bg-blue-100'"
         @click="markAsRead(notif)"
+        @dblclick="selectionMode = !selectionMode; selectedIds = new Set()"
       >
-        <div class="pt-0.5">
+        <div class="pt-0.5 flex items-center gap-2">
+          <input v-if="selectionMode" type="checkbox" :checked="selectedIds.has(notif.notification_id)" @click="toggleSelect(notif.notification_id, $event)" class="w-4 h-4 cursor-pointer accent-blue-600" />
           <div class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: typeColors[notif.notification_type] || '#3b82f6' }"></div>
         </div>
         <div class="flex-1 min-w-0">
@@ -207,7 +265,7 @@ onMounted(loadNotifications)
           </div>
         </div>
         <button
-          class="absolute top-3 right-3 flex items-center justify-center w-7 h-7 border-0 rounded-md bg-transparent text-gray-300 cursor-pointer opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-50 hover:text-red-500"
+          class="absolute top-20 right-3 flex items-center justify-center w-7 h-7 border-0 rounded-md bg-transparent text-gray-300 cursor-pointer opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-50 hover:text-red-500"
           @click="removeNotification(notif, $event)"
           title="Delete notification"
         >

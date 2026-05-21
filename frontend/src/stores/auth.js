@@ -12,7 +12,7 @@ export const useAuthStore = defineStore('auth', () => {
     const userRole = computed(() => {
         if (!user.value || !user.value.roles || user.value.roles.length === 0) return null
         const assignedRole = user.value.roles[0]?.role?.role_name?.toLowerCase()
-        if (assignedRole === 'faculty') return 'teacher'
+        if (assignedRole === 'faculty') return 'teacher' || 'professor'
         return assignedRole || null
     })
 

@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   getFacultySections, createSection, updateSection, deleteSection, getCourses, getTerms,
-  enrollStudent, getStudents, getSectionEnrollments
+  enrollStudent, getStudents, getSectionEnrollments, getSections
 } from '../../services/api.js'
 import { useToast } from '../../composables/useToast'
 
@@ -99,9 +99,15 @@ const fetchDropdowns = async () => {
 const fetchSections = async () => {
   loading.value = true
   try {
-    const response = await getFacultySections(authStore.user.user_id)
+    const response = await getFacultySections('me')
     sections.value = response.data.sections || []
-  } catch (error) { console.error('Error fetching teacher courses:', error) }
+  } catch (error) {
+    // Fallback: query sections by instructor_id if faculty profile doesn't exist
+    try {
+      const res = await getSections(0, 100, null, null, authStore.user.user_id)
+      sections.value = res.data.sections || []
+    } catch (e) { console.error('Error fetching sections:', e) }
+  }
   finally { loading.value = false }
 }
 

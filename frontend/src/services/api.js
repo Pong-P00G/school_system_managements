@@ -100,6 +100,7 @@ export const updateFaculty = (id, data) => api.put(`/faculty/${id}`, data)
 export const deleteFaculty = (id) => api.delete(`/faculty/${id}`)
 export const getFacultyProfile = () => api.get('/faculty/me')
 export const getFacultySections = (id = 'me', termId = null) => api.get(id === 'me' ? '/faculty/me/sections' : `/faculty/${id}/sections`, { params: { term_id: termId } })
+export const getPendingGrading = () => api.get('/faculty/me/pending-grading')
 export const getFacultyAssignments = (id) => api.get(`/faculty/${id}/assignments`)
 
 // --- Staff ---

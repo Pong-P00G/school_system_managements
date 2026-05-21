@@ -213,7 +213,7 @@ watch(selectedDate, () => { if (selectedSectionId.value) loadAttendance() })
     <!-- Attendance List -->
     <div v-else-if="attendanceRecords.length > 0" class="bg-surface rounded-xl border border-border-light overflow-hidden" style="box-shadow: var(--shadow-card)">
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[600px]">
+        <table class="w-full min-w-150">
           <thead>
             <tr class="border-b-2 border-border-medium bg-page">
               <th class="text-left py-3 px-4 text-[0.7rem] font-bold text-ink-muted uppercase tracking-wider w-10">#</th>
@@ -280,7 +280,7 @@ watch(selectedDate, () => { if (selectedSectionId.value) loadAttendance() })
     <div v-if="showSummary && summaryData" class="admin-modal-overlay" @click.self="showSummary = false">
       <div class="admin-modal admin-modal-lg">
         <div class="flex items-center justify-between mb-5">
-          <h2 class="!mb-0">Attendance Summary</h2>
+          <h2 class="mb-0!">Attendance Summary</h2>
           <button @click="showSummary = false" class="p-1.5 rounded-lg hover:bg-page text-ink-muted">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>

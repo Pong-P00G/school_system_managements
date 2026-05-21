@@ -7,6 +7,7 @@ import {
   getNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotification,
 } from '../services/api'
 
 const router = useRouter()
@@ -67,6 +68,17 @@ async function markAllAsRead() {
   }
 }
 
+async function removeNotification(notif, event) {
+  event.stopPropagation()
+  try {
+    await deleteNotification(notif.notification_id)
+    localNotifications.value = localNotifications.value.filter(n => n.notification_id !== notif.notification_id)
+    if (!notif.is_read) unreadCount.value = Math.max(0, unreadCount.value - 1)
+  } catch (err) {
+    console.error('Failed to delete notification:', err)
+  }
+}
+
 function goToNotifications() {
   showDropdown.value = false
   const role = authStore.userRole
@@ -124,7 +136,7 @@ function formatTime(dateStr) {
     </button>
 
     <Transition name="dropdown">
-      <div v-if="showDropdown" class="absolute top-[calc(100%+8px)] right-0 w-[360px] max-h-[480px] bg-white rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.15),0_1px_3px_rgba(0,0,0,0.1)] z-[1000] overflow-hidden">
+      <div v-if="showDropdown" class="absolute top-[calc(100%+8px)] right-0 w-90 max-h-128 bg-white rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.15),0_1px_3px_rgba(0,0,0,0.1)] z-1000 overflow-hidden">
         <div class="flex items-center justify-between py-4 px-5 border-b border-gray-100">
           <h3 class="m-0 text-[15px] font-semibold text-gray-900">Notifications</h3>
           <div class="flex gap-2">
@@ -133,7 +145,7 @@ function formatTime(dateStr) {
           </div>
         </div>
 
-        <div class="max-h-[380px] overflow-y-auto">
+        <div class="max-h-95 overflow-y-auto">
           <div v-if="loading" class="flex flex-col items-center justify-center py-10 px-5 text-gray-400 text-sm">Loading...</div>
           <div v-else-if="localNotifications.length === 0" class="flex flex-col items-center justify-center py-10 px-5 text-gray-400 text-sm">
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 mb-2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
@@ -142,7 +154,7 @@ function formatTime(dateStr) {
           <div
             v-for="notif in localNotifications"
             :key="notif.notification_id"
-            class="flex gap-3 py-3 px-5 cursor-pointer transition-colors duration-150 border-b border-gray-50"
+            class="group flex gap-3 py-3 px-5 cursor-pointer transition-colors duration-150 border-b border-gray-50 relative"
             :class="notif.is_read ? 'hover:bg-gray-50' : 'bg-blue-50 hover:bg-blue-100'"
             @click="viewDetails(notif)"
           >
@@ -152,6 +164,13 @@ function formatTime(dateStr) {
               <div v-if="notif.message" class="text-xs text-gray-500 leading-snug mb-1 line-clamp-2">{{ notif.message }}</div>
               <div class="text-[11px] text-gray-400">{{ formatTime(notif.created_at) }}</div>
             </div>
+            <button
+              class="absolute top-2 right-2 flex items-center justify-center w-6 h-6 border-0 rounded-md bg-transparent text-gray-300 cursor-pointer opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-50 hover:text-red-500"
+              @click="removeNotification(notif, $event)"
+              title="Delete"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
           </div>
         </div>
       </div>
@@ -159,8 +178,8 @@ function formatTime(dateStr) {
 
     <!-- Notification Detail Modal -->
     <Transition name="modal">
-      <div v-if="showDetailModal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @click.self="showDetailModal = false">
-        <div class="w-full max-w-[500px] bg-white rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden">
+      <div v-if="showDetailModal" class="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @click.self="showDetailModal = false">
+        <div class="w-full max-w-125 bg-white rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] overflow-hidden">
           <div class="flex items-center justify-between py-5 px-6 border-b border-gray-100">
             <h3 class="m-0 text-lg font-semibold text-gray-900">{{ selectedNotification?.title }}</h3>
             <button @click="showDetailModal = false" class="flex items-center justify-center w-8 h-8 border-0 rounded-md bg-transparent text-gray-500 cursor-pointer transition-all duration-150 hover:bg-gray-100 hover:text-gray-900">
