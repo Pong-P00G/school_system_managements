@@ -193,6 +193,12 @@ const routes = [
         meta: { title: 'My Courses' } 
       },
       { 
+        path: 'courses/:enrollmentId', 
+        name: 'StudentCourseDetail', 
+        component: () => import('../views/student/CourseDetail.vue'), 
+        meta: { title: 'Course Detail' } 
+      },
+      { 
         path: 'assignments', 
         name: 'StudentAssignments', 
         component: StudentAssignments, 
@@ -222,13 +228,25 @@ const routes = [
         component: StudentAttendance, 
         meta: { title: 'My Attendance' } 
       },
+      { 
+        path: 'profile', 
+        name: 'StudentProfile', 
+        component: () => import('../views/Profile.vue'), 
+        meta: { title: 'My Profile' } 
+      },
+      { 
+        path: 'calendar', 
+        name: 'StudentCalendar', 
+        component: () => import('../views/student/Calendar.vue'), 
+        meta: { title: 'Academic Calendar' } 
+      },
     ]
   },
 
   {
     path: '/teacher',
     component: () => import('../layouts/PortalLayout.vue'),
-    meta: { requiresAuth: true, roles: ['teacher', 'professor'] },
+    meta: { requiresAuth: true, roles: ['teacher', 'professor', 'faculty'] },
     children: [
       { 
         path: 'dashboard', 
@@ -272,6 +290,24 @@ const routes = [
         component: Notifications, 
         meta: { title: 'Notifications' } 
       },
+      { 
+        path: 'profile', 
+        name: 'TeacherProfile', 
+        component: () => import('../views/Profile.vue'), 
+        meta: { title: 'My Profile' } 
+      },
+      { 
+        path: 'withdrawal-requests', 
+        name: 'TeacherWithdrawalRequests', 
+        component: () => import('../views/teacher/WithdrawalRequests.vue'), 
+        meta: { title: 'Withdrawal Requests' } 
+      },
+      { 
+        path: 'announcements', 
+        name: 'TeacherAnnouncements', 
+        component: () => import('../views/teacher/Announcements.vue'), 
+        meta: { title: 'Announcements' } 
+      },
     ]
   },
 
@@ -308,7 +344,7 @@ router.beforeEach(async (to, _from, next) => {
 
   if (to.meta.roles && authStore.isAuthenticated) {     
      let currentRole = role
-     if (currentRole === 'faculty') currentRole = 'teacher'
+     if (currentRole === 'faculty' || currentRole === 'professor') currentRole = 'teacher'
      
      if (currentRole !== 'super-admin' && !to.meta.roles.includes(currentRole)) {
         next('/unauthorized')

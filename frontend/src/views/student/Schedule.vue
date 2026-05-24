@@ -35,6 +35,11 @@ const dayTimeColor = {
   Thursday: 'text-info', Friday: 'text-[#5e6e5f]',
 }
 
+const today = computed(() => {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  return days[new Date().getDay()]
+})
+
 const schedule = computed(() => {
   const result = { Monday: [], Tuesday: [], Wednesday: [], Thursday: [], Friday: [], Saturday: [], Sunday: [] }
   enrollments.value.forEach(enr => {
@@ -90,6 +95,7 @@ onMounted(fetchSchedule)
             <div class="flex items-center gap-2.5 mb-3">
               <div class="w-1 h-6 rounded-full" :class="dayAccent[day]"></div>
               <h4 class="text-lg font-bold text-ink m-0 flex-1">{{ day }}</h4>
+              <span v-if="day === today" class="px-2.5 py-0.5 rounded-full text-[0.7rem] font-semibold bg-primary/12 text-primary">Today</span>
               <span v-if="schedule[day].length"
                 class="px-2.5 py-0.5 rounded-full text-[0.7rem] font-medium bg-sage/15 text-[#5e6e5f]">
                 {{ schedule[day].length }} class{{ schedule[day].length > 1 ? 'es' : '' }}

@@ -8,7 +8,7 @@ from app.models.people import Student, Enrollment, Assignment, AssignmentSubmiss
 from app.models.user import User
 from app.models.academic import Program, CourseSection, Course
 from app.schemas.people import (
-    StudentOut, StudentListOut, StudentCreate, StudentUpdate
+    StudentOut, StudentListOut, StudentCreate, StudentUpdate, EnrollmentListOut
 )
 from app.api.deps import get_current_user
 
@@ -35,7 +35,7 @@ async def get_my_student_profile(
     return student
 
 
-@router.get("/me/enrollments")
+@router.get("/me/enrollments", response_model=EnrollmentListOut)
 async def get_my_enrollments(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -51,14 +51,16 @@ async def get_my_enrollments(
     query = (
         select(Enrollment)
         .options(
-            selectinload(Enrollment.section)
-            .selectinload(CourseSection.course),
+            selectinload(Enrollment.student),
+            selectinload(Enrollment.section).selectinload(CourseSection.course),
+            selectinload(Enrollment.section).selectinload(CourseSection.term),
+            selectinload(Enrollment.section).selectinload(CourseSection.room),
         )
         .where(Enrollment.student_id == current_user.user_id)
     )
     enrollments_result = await db.execute(query)
     enrollments = enrollments_result.scalars().all()
-    return {"enrollments": enrollments, "total": len(enrollments)}
+    return EnrollmentListOut(enrollments=enrollments, total=len(enrollments))
 
 
 @router.get("/me/assignments")

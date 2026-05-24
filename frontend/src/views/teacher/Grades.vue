@@ -105,6 +105,26 @@ const handleDeleteAssignment = async (asnId) => {
       </div>
     </div>
 
+    <!-- Grading Progress -->
+    <div v-if="!loading && enrollments.length > 0" class="flex flex-wrap items-center gap-4 px-1">
+      <div class="flex items-center gap-2 text-sm text-ink-muted">
+        <Icons name="mdi-account-group" class="text-primary" />
+        <span><strong class="text-ink">{{ enrollments.length }}</strong> Students</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-ink-muted">
+        <Icons name="mdi-check-circle" class="text-success" />
+        <span><strong class="text-ink">{{ enrollments.filter(e => e.grade).length }}</strong> Graded</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-ink-muted">
+        <Icons name="mdi-clock-outline" class="text-warning" />
+        <span><strong class="text-ink">{{ enrollments.filter(e => !e.grade).length }}</strong> Pending</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-ink-muted">
+        <Icons name="mdi-clipboard-text" class="text-coral" />
+        <span><strong class="text-ink">{{ assignments.length }}</strong> Assignments</span>
+      </div>
+    </div>
+
     <!-- Assignments Table -->
     <div class="bg-surface border border-border-light rounded-2xl shadow-card animate-fade-in">
       <div class="flex items-center justify-between px-6 py-4 border-b border-border-light">

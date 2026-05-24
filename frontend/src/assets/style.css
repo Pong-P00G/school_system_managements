@@ -117,8 +117,13 @@ body {
 
 /* ─── Admin Table Card ─── */
 .admin-table-card {
-  @apply bg-surface rounded-xl border border-border-light overflow-x-auto;
+  @apply bg-surface rounded-xl border border-border-light overflow-hidden;
   box-shadow: var(--shadow-card);
+}
+
+.admin-table-card > .admin-table-wrapper {
+  @apply overflow-x-auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .admin-record-count {
@@ -127,7 +132,7 @@ body {
 
 /* ─── Admin Table ─── */
 .admin-table {
-  @apply w-full border-collapse min-w-150;
+  @apply w-full border-collapse min-w-[700px];
 }
 .admin-table thead th {
   @apply text-left py-[0.85rem] px-5 text-[0.7rem] font-bold uppercase tracking-wider text-ink-muted border-b-2 border-border-medium bg-page;
@@ -163,7 +168,7 @@ body {
 
 /* ─── Admin Action Buttons ─── */
 .admin-action-btn {
-  @apply bg-transparent border border-transparent cursor-pointer text-[0.8rem] font-semibold py-[0.35rem] px-3 rounded-md transition-all duration-150;
+  @apply bg-transparent border border-transparent cursor-pointer text-[0.8rem] font-semibold py-[0.35rem] px-3 rounded-md transition-all duration-150 ml-2;
 }
 .admin-action-edit {
   @apply text-primary border-border-light;
@@ -304,9 +309,29 @@ body {
   .admin-btn-add {
     @apply w-full justify-center;
   }
+  .admin-table-card {
+    @apply rounded-lg -mx-4 border-x-0;
+  }
+  .admin-table-card .admin-table-wrapper {
+    position: relative;
+  }
+  .admin-table-card .admin-table-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 24px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,0.9));
+    pointer-events: none;
+    z-index: 1;
+  }
+  .admin-table {
+    @apply min-w-[600px];
+  }
   .admin-table thead th,
   .admin-table tbody td {
-    @apply py-2 px-3 text-[0.78rem];
+    @apply py-2.5 px-3 text-[0.78rem];
   }
   .admin-record-count {
     @apply py-2 px-3 text-xs;
@@ -321,7 +346,7 @@ body {
     @apply text-base;
   }
   .admin-form-grid {
-    @apply gap-3;
+    @apply gap-3 grid-cols-1;
   }
   .admin-form-grid input,
   .admin-form-grid select,
@@ -341,10 +366,13 @@ body {
   .admin-loading {
     @apply py-6 px-4 text-[0.82rem];
   }
+  .admin-bulk-actions {
+    @apply flex-wrap gap-2 py-2 px-3;
+  }
 }
 
 @media (min-width: 640px) and (max-width: 1023px) {
   .admin-table {
-    @apply min-w-125;
+    @apply min-w-[700px];
   }
 }

@@ -10,9 +10,11 @@ export const useAuthStore = defineStore('auth', () => {
     const isAuthenticated = computed(() => !!token.value)
     
     const userRole = computed(() => {
-        if (!user.value || !user.value.roles || user.value.roles.length === 0) return null
-        const assignedRole = user.value.roles[0]?.role?.role_name?.toLowerCase()
-        if (assignedRole === 'faculty') return 'teacher' || 'professor'
+        if (!user.value) return null
+        const roles = user.value.roles || user.value.role_assignments || []
+        if (roles.length === 0) return null
+        const assignedRole = roles[0]?.role?.role_name?.toLowerCase()
+        if (assignedRole === 'faculty' || assignedRole === 'professor') return 'teacher'
         return assignedRole || null
     })
 

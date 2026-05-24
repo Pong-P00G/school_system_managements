@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import Icons from '../components/icon/Icons.vue'
@@ -10,6 +10,8 @@ const router = useRouter()
 const route = useRoute()
 const userRole = computed(() => authStore.userRole)
 const mobileOpen = ref(false)
+const dropdownOpen = ref(false)
+const dropdownRef = ref(null)
 
 const userName = computed(() => {
     const user = authStore.user || JSON.parse(localStorage.getItem('user') || '{}')
@@ -18,6 +20,9 @@ const userName = computed(() => {
 
 const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
 
+const profilePath = computed(() => userRole.value === 'student' ? '/student/profile' : '/teacher/profile')
+const notificationsPath = computed(() => userRole.value === 'student' ? '/student/notifications' : '/teacher/notifications')
+
 const navigationItems = computed(() => {
     if (userRole.value === 'student') {
         return [
@@ -25,18 +30,19 @@ const navigationItems = computed(() => {
             { name: 'Courses', path: '/student/courses', icons: 'mdi-book-open-variant' },
             { name: 'Assignments', path: '/student/assignments', icons: 'mdi-file-document' },
             { name: 'Grades', path: '/student/grades', icons: 'mdi-chart-line' },
-            { name: 'Schedule', path: '/student/schedule', icons: 'mdi-calendar' },                
+            { name: 'Schedule', path: '/student/schedule', icons: 'mdi-calendar' },
+            { name: 'Calendar', path: '/student/calendar', icons: 'mdi-calendar-clock' },
             { name: 'Attendance', path: '/student/attendance', icons: 'mdi-calendar-check' },
-            { name: 'Notifications', path: '/student/notifications', icons: 'mdi-bell-outline' },
         ]
     } else if (userRole.value === 'professor' || userRole.value === 'teacher') {
         return [
             { name: 'Dashboard', path: '/teacher/dashboard', icons: 'mdi-view-dashboard' },
             { name: 'My Classes', path: '/teacher/courses', icons: 'mdi-book-open-variant' },
             { name: 'Students', path: '/teacher/students', icons: 'mdi-account-group' },
-            { name: 'Attendance', path: '/teacher/attendance', icons: 'mdi-calendar-check' },                
+            { name: 'Attendance', path: '/teacher/attendance', icons: 'mdi-calendar-check' },
             { name: 'Grading', path: '/teacher/grades', icons: 'mdi-chart-line' },
-            { name: 'Notifications', path: '/teacher/notifications', icons: 'mdi-bell-outline' },
+            { name: 'Announcements', path: '/teacher/announcements', icons: 'mdi-bullhorn' },
+            { name: 'Requests', path: '/teacher/withdrawal-requests', icons: 'mdi-account-arrow-right' },
         ]
     }
     return []
@@ -48,6 +54,16 @@ const logout = async () => {
 }
 
 const isActive = (path) => route.path === path
+
+// Close dropdown on outside click
+function handleClickOutside(e) {
+    if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
+        dropdownOpen.value = false
+    }
+}
+
+onMounted(() => document.addEventListener('click', handleClickOutside))
+onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
 </script>
 
 <template>
@@ -57,7 +73,7 @@ const isActive = (path) => route.path === path
             <div class="max-w-7xl mx-auto px-4 sm:px-6">
                 <div class="flex items-center justify-between h-15">
                     <!-- Left: Logo + Links -->
-                    <div class="flex items-center gap-10">
+                    <div class="flex items-center gap-4 lg:gap-8">
                         <div class="flex items-center gap-2">
                             <div
                                 class="w-8 h-8 bg-white/15 rounded-lg flex items-center justify-center text-white text-lg">
@@ -67,12 +83,13 @@ const isActive = (path) => route.path === path
                         </div>
 
                         <!-- Desktop Nav -->
-                        <nav class="hidden md:flex items-center gap-1">
+                        <nav class="hidden md:flex items-center gap-0.5 lg:gap-1">
                             <router-link v-for="item in navigationItems" :key="item.path" :to="item.path"
-                                class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[0.825rem] font-medium text-white/70 no-underline transition-all duration-200 hover:bg-white/10 hover:text-white"
+                                class="flex items-center gap-1 lg:gap-1.5 px-2.5 lg:px-3.5 py-2 rounded-lg text-[0.78rem] lg:text-[0.825rem] font-medium text-white/70 no-underline transition-all duration-200 hover:bg-white/10 hover:text-white"
                                 :class="{ 'bg-white/18 text-white!': isActive(item.path) }">
-                                <Icons :name="item.icons" class="text-lg" />
-                                {{ item.name }}
+                                <Icons :name="item.icons" class="text-base lg:text-lg" />
+                                <span class="hidden lg:inline">{{ item.name }}</span>
+                                <span class="lg:hidden">{{ item.name.split(' ')[0] }}</span>
                             </router-link>
                         </nav>
                     </div>
@@ -80,18 +97,39 @@ const isActive = (path) => route.path === path
                     <!-- Right -->
                     <div class="flex items-center gap-3">
                         <NotificationBell />
-                        <div class="hidden md:flex items-center gap-2">
-                            <div
-                                class="w-8 h-8 rounded-full bg-white/18 text-white font-semibold text-[0.8rem] flex items-center justify-center">
-                                {{ userInitial }}
-                            </div>
-                            <span class="text-[0.825rem] font-medium text-white/85">{{ userName }}</span>
+                        <!-- User Dropdown -->
+                        <div class="hidden md:block relative" ref="dropdownRef">
+                            <button @click="dropdownOpen = !dropdownOpen"
+                                class="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-transparent border-none cursor-pointer transition">
+                                <div
+                                    class="w-8 h-8 rounded-full bg-white/18 text-white font-semibold text-[0.8rem] flex items-center justify-center">
+                                    {{ userInitial }}
+                                </div>
+                                <span class="text-[0.825rem] font-medium text-white/85">{{ userName }}</span>
+                            </button>
+
+                            <Transition name="dropdown">
+                                <div v-if="dropdownOpen"
+                                    class="absolute right-0 top-full mt-2 w-52 bg-surface rounded-xl shadow-elevated border border-border-light py-2 z-50">
+                                    <router-link :to="profilePath" @click="dropdownOpen = false"
+                                        class="flex items-center gap-2.5 px-4 py-3 text-sm text-ink font-medium no-underline hover:bg-page transition">
+                                        <Icons name="mdi-account-circle-outline" class="text-lg text-ink-muted" />
+                                        Profile
+                                    </router-link>
+                                    <router-link :to="notificationsPath" @click="dropdownOpen = false"
+                                        class="flex items-center gap-2.5 px-4 py-3 text-sm text-ink font-medium no-underline hover:bg-page transition">
+                                        <Icons name="mdi-bell-outline" class="text-lg text-ink-muted" />
+                                        Notifications
+                                    </router-link>
+                                    <div class="my-1.5 h-px bg-border-light mx-3"></div>
+                                    <button @click="logout(); dropdownOpen = false"
+                                        class="flex items-center gap-2.5 px-4 py-3 text-sm text-error font-medium w-full border-none bg-transparent cursor-pointer font-sans hover:bg-error/5 transition">
+                                        <Icons name="mdi-logout" class="text-lg" />
+                                        Logout
+                                    </button>
+                                </div>
+                            </Transition>
                         </div>
-                        <button @click="logout"
-                            class="hidden md:flex items-center gap-1.5 px-3 py-1.5 border border-white/20 rounded-lg bg-transparent text-white/80 font-sans text-[0.8rem] font-medium cursor-pointer transition-all duration-200 hover:bg-error/15 hover:border-error/30 hover:text-red-300">
-                            <Icons name="mdi-logout" class="text-base" />
-                            Logout
-                        </button>
 
                         <!-- Mobile Toggle -->
                         <button @click="mobileOpen = !mobileOpen"
@@ -110,6 +148,19 @@ const isActive = (path) => route.path === path
                         :class="{ 'bg-white/12 text-white!': isActive(item.path) }" @click="mobileOpen = false">
                         <Icons :name="item.icons" />
                         {{ item.name }}
+                    </router-link>
+                    <div class="my-2 h-px bg-white/10"></div>
+                    <router-link :to="profilePath"
+                        class="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[0.875rem] font-medium text-white/75 no-underline hover:bg-white/12 hover:text-white"
+                        @click="mobileOpen = false">
+                        <Icons name="mdi-account-circle-outline" />
+                        Profile
+                    </router-link>
+                    <router-link :to="notificationsPath"
+                        class="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[0.875rem] font-medium text-white/75 no-underline hover:bg-white/12 "
+                        @click="mobileOpen = false">
+                        <Icons name="mdi-bell-outline" />
+                        Notifications
                     </router-link>
                     <button @click="logout"
                         class="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[0.875rem] font-medium text-red-300 no-underline border-none bg-transparent w-full cursor-pointer font-sans mt-2 border-t border-white/8 pt-4 hover:bg-white/12">
@@ -147,4 +198,6 @@ const isActive = (path) => route.path === path
 .slide-enter-active, .slide-leave-active { transition: all 0.25s ease; overflow: hidden; }
 .slide-enter-from, .slide-leave-to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
 .slide-enter-to, .slide-leave-from { opacity: 1; max-height: 400px; }
+.dropdown-enter-active, .dropdown-leave-active { transition: all 0.15s ease; }
+.dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-4px) scale(0.95); }
 </style>

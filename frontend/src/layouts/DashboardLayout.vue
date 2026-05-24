@@ -67,8 +67,8 @@ const navigateTo = (path) => {
                 collapsed ? 'lg:w-18' : 'lg:w-60'
             ]">
             <!-- Logo area -->
-            <div class="flex items-center gap-3 px-4 py-5 border-b border-border-light"
-                :class="{ 'lg:justify-center': collapsed } && { 'md:h-20': collapsed && !mobileOpen }">
+            <div class="flex items-center gap-3 px-4 h-16 border-b border-border-light"
+                :class="{ 'lg:justify-center': collapsed }">
                 <div @click="toggleSidebar"
                     class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 cursor-pointer"
                     title="Toggle sidebar">
@@ -130,9 +130,7 @@ const navigateTo = (path) => {
         <div class="flex-1 flex flex-col min-h-screen transition-[margin-left] duration-250 ease-in-out ml-0"
             :class="collapsed ? 'lg:ml-18' : 'lg:ml-60'">
             <!-- Top header -->
-            <header class="h-18 bg-surface border-b border-border-light sticky top-0 z-10 px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3"
-                :class="{'lg:h-20': collapsed, 'md:h-20': !collapsed} "
-            >
+            <header class="h-16 bg-surface border-b border-border-light sticky top-0 z-10 px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3">
                 <!-- Hamburger (mobile) -->
                 <button @click="toggleMobile" class="lg:hidden p-1.5 -ml-1 rounded-lg hover:bg-page text-ink-secondary">
                     <Icons name="Menu" class="w-5 h-5" />

@@ -80,31 +80,31 @@ onMounted(async () => {
     <!-- Stats -->
     <div v-else class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
       <div
-        class="bg-surface border border-border-light rounded-2xl p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-1">
+        class="bg-surface border border-border-light rounded-2xl p-4 sm:p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-1">
         <div class="absolute top-0 left-0 w-1 h-full rounded-l-2xl bg-primary"></div>
         <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg mb-3">
           <Icons name="mdi-book-open-variant" />
         </div>
         <p class="text-xs font-medium text-ink-muted uppercase tracking-wide mb-1">Enrolled Credits</p>
-        <p class="text-3xl font-bold text-ink">{{ enrolledCredits }}</p>
+        <p class="text-2xl sm:text-3xl font-bold text-ink">{{ enrolledCredits }}</p>
       </div>
       <div
-        class="bg-surface border border-border-light rounded-2xl p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-2">
+        class="bg-surface border border-border-light rounded-2xl p-4 sm:p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-2">
         <div class="absolute top-0 left-0 w-1 h-full rounded-l-2xl bg-coral"></div>
         <div class="w-10 h-10 rounded-full bg-coral/12 text-coral flex items-center justify-center text-lg mb-3">
           <Icons name="mdi-file-document-outline" />
         </div>
         <p class="text-xs font-medium text-ink-muted uppercase tracking-wide mb-1">Assignments</p>
-        <p class="text-3xl font-bold text-ink">{{ upcomingAssignments.length }}</p>
+        <p class="text-2xl sm:text-3xl font-bold text-ink">{{ upcomingAssignments.length }}</p>
       </div>
       <div
-        class="bg-surface border border-border-light rounded-2xl p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-3">
+        class="col-span-2 sm:col-span-1 bg-surface border border-border-light rounded-2xl p-4 sm:p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-3">
         <div class="absolute top-0 left-0 w-1 h-full rounded-l-2xl bg-success"></div>
         <div class="w-10 h-10 rounded-full bg-success/10 text-success flex items-center justify-center text-lg mb-3">
           <Icons name="mdi-account-group" />
         </div>
         <p class="text-xs font-medium text-ink-muted uppercase tracking-wide mb-1">Active Classes</p>
-        <p class="text-3xl font-bold text-ink">{{ totalClasses }}</p>
+        <p class="text-2xl sm:text-3xl font-bold text-ink">{{ totalClasses }}</p>
       </div>
     </div>
 
@@ -169,27 +169,27 @@ onMounted(async () => {
     <div v-if="!loading"
       class="bg-surface border border-border-light rounded-2xl shadow-card p-6 animate-fade-in delay-4">
       <h3 class="text-base font-semibold text-ink mb-4">Quick Actions</h3>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <router-link to="/student/courses"
-          class="flex items-center gap-3 p-4 border border-border-light rounded-xl no-underline text-ink text-sm font-medium transition-all duration-200 hover:bg-primary/0.25 hover:border-primary hover:shadow-card">
-          <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+          class="flex items-center gap-3 p-3 sm:p-4 border border-border-light rounded-xl no-underline text-ink text-sm font-medium transition-all duration-200 hover:bg-primary/0.25 hover:border-primary hover:shadow-card">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
             <Icons name="mdi-book-open-variant" />
           </div>
-          <span>Browse Courses</span>
+          <span class="text-xs sm:text-sm">Browse Courses</span>
         </router-link>
         <router-link to="/student/grades"
-          class="flex items-center gap-3 p-4 border border-border-light rounded-xl no-underline text-ink text-sm font-medium transition-all duration-200 hover:bg-primary/0.25 hover:border-primary hover:shadow-card">
-          <div class="w-10 h-10 rounded-full bg-success/10 text-success flex items-center justify-center">
+          class="flex items-center gap-3 p-3 sm:p-4 border border-border-light rounded-xl no-underline text-ink text-sm font-medium transition-all duration-200 hover:bg-primary/0.25 hover:border-primary hover:shadow-card">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-success/10 text-success flex items-center justify-center shrink-0">
             <Icons name="mdi-chart-line" />
           </div>
-          <span>View Grades</span>
+          <span class="text-xs sm:text-sm">View Grades</span>
         </router-link>
         <router-link to="/student/schedule"
-          class="flex items-center gap-3 p-4 border border-border-light rounded-xl no-underline text-ink text-sm font-medium transition-all duration-200 hover:bg-primary/0.25 hover:border-primary hover:shadow-card">
-          <div class="w-10 h-10 rounded-full bg-sage/12 text-[#5e6e5f] flex items-center justify-center">
+          class="col-span-2 sm:col-span-1 flex items-center gap-3 p-3 sm:p-4 border border-border-light rounded-xl no-underline text-ink text-sm font-medium transition-all duration-200 hover:bg-primary/0.25 hover:border-primary hover:shadow-card">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-sage/12 text-[#5e6e5f] flex items-center justify-center shrink-0">
             <Icons name="mdi-calendar" />
           </div>
-          <span>View Schedule</span>
+          <span class="text-xs sm:text-sm">View Schedule</span>
         </router-link>
       </div>
     </div>

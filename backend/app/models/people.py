@@ -116,6 +116,26 @@ class Enrollment(Base):
     student = relationship("Student", back_populates="enrollments")
     section = relationship("CourseSection", back_populates="enrollments")
     reviews = relationship("Review", back_populates="enrollment", cascade="all, delete-orphan")
+    withdrawal_requests = relationship("WithdrawalRequest", back_populates="enrollment", passive_deletes="all", lazy="noload")
+
+
+class WithdrawalRequest(Base):
+    __tablename__ = "withdrawal_requests"
+
+    request_id = Column(Integer, primary_key=True, autoincrement=True)
+    enrollment_id = Column(Integer, ForeignKey("enrollments.enrollment_id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("students.student_id", ondelete="CASCADE"), nullable=False)
+    reason = Column(Text, nullable=False)
+    status = Column(String(20), default="pending")  # pending, approved, rejected
+    reviewed_by = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    reviewer_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+    # Relationships
+    enrollment = relationship("Enrollment", back_populates="withdrawal_requests")
+    student = relationship("Student")
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
 
 
 

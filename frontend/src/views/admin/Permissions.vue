@@ -94,6 +94,7 @@ onMounted(loadData)
       <!-- Pages Table -->
       <div class="admin-table-card">
         <div class="admin-record-count">{{ filteredPages.length }} page(s)</div>
+        <div class="admin-table-wrapper">
         <table class="admin-table">
           <thead>
             <tr>
@@ -147,6 +148,7 @@ onMounted(loadData)
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </template>
   </div>

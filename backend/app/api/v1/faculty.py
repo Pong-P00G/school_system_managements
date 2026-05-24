@@ -26,7 +26,20 @@ async def get_my_faculty_profile(
     )
     faculty = result.scalar_one_or_none()
     if not faculty:
-        raise HTTPException(status_code=404, detail="No faculty profile linked to this user")
+        # No faculty profile yet — return minimal info from user record
+        return {
+            "faculty_id": str(current_user.user_id),
+            "user": {
+                "user_id": str(current_user.user_id),
+                "username": current_user.username,
+                "email": current_user.email,
+                "personal_info": current_user.personal_info,
+            },
+            "department": None,
+            "faculty_rank": None,
+            "employment_status": "active",
+            "employee_number": None,
+        }
     return faculty
 
 
@@ -37,11 +50,6 @@ async def get_my_sections(
 ):
     from app.schemas.academic import CourseSectionListOut
     
-    # Verify faculty profile exists
-    result = await db.execute(select(Faculty).where(Faculty.faculty_id == current_user.user_id))
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="No faculty profile linked to this user")
-
     query = (
         select(CourseSection)
         .options(
@@ -320,11 +328,6 @@ async def get_faculty_sections(
 ):
     from app.models.academic import CourseSection
     from app.schemas.academic import CourseSectionListOut, CourseSectionOut
-
-    result = await db.execute(select(Faculty).where(Faculty.faculty_id == faculty_id))
-    faculty = result.scalar_one_or_none()
-    if not faculty:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Faculty not found")
 
     query = (
         select(CourseSection)

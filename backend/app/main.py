@@ -30,10 +30,36 @@ async def lifespan(app: FastAPI):
     try:
         async with async_session() as session:
             await session.execute(text("SELECT 1"))
+            # Ensure withdrawal_requests table exists
+            await session.execute(text("""
+                CREATE TABLE IF NOT EXISTS withdrawal_requests (
+                    request_id SERIAL PRIMARY KEY,
+                    enrollment_id INTEGER NOT NULL REFERENCES enrollments(enrollment_id) ON DELETE CASCADE,
+                    student_id UUID NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+                    reason TEXT NOT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    reviewed_by UUID REFERENCES users(user_id) ON DELETE SET NULL,
+                    reviewed_at TIMESTAMP,
+                    reviewer_note TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            # Ensure announcements table exists
+            await session.execute(text("""
+                CREATE TABLE IF NOT EXISTS announcements (
+                    announcement_id SERIAL PRIMARY KEY,
+                    section_id INTEGER NOT NULL REFERENCES course_sections(section_id) ON DELETE CASCADE,
+                    author_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                    title VARCHAR(200) NOT NULL,
+                    content TEXT NOT NULL,
+                    is_pinned BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await session.commit()
         logger.info("Database connection verified at startup")
     except Exception as e:
         logger.error("Database connection failed at startup: %s", str(e))
-        # Don't crash - allow app to start so health checks can report status
     yield
     logger.info("Shutting down %s", settings.APP_NAME)
 

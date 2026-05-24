@@ -142,7 +142,7 @@ async def create_section(data: CourseSectionCreate, db: AsyncSession = Depends(g
     # Re-query with eager loading so response_model can serialize relationships
     result = await db.execute(
         select(CourseSection)
-        .options(selectinload(CourseSection.course), selectinload(CourseSection.term))
+        .options(selectinload(CourseSection.course), selectinload(CourseSection.term), selectinload(CourseSection.room))
         .where(CourseSection.section_id == section.section_id)
     )
     return result.scalar_one()
@@ -189,7 +189,7 @@ async def update_section(section_id: int, data: CourseSectionUpdate, db: AsyncSe
     # Re-query with eager loading so response_model can serialize relationships
     result = await db.execute(
         select(CourseSection)
-        .options(selectinload(CourseSection.course), selectinload(CourseSection.term))
+        .options(selectinload(CourseSection.course), selectinload(CourseSection.term), selectinload(CourseSection.room))
         .where(CourseSection.section_id == section_id)
     )
     return result.scalar_one()

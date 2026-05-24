@@ -216,6 +216,7 @@ onMounted(loadFaculty)
           {{ bulkDeleting ? 'Deleting...' : 'Delete Selected' }}
         </button>
       </div>
+      <div class="admin-table-wrapper">
       <table class="admin-table">
         <thead>
           <tr>
@@ -252,6 +253,7 @@ onMounted(loadFaculty)
           </tr>
         </tbody>
       </table>
+      </div>
       <Pagination :current-page="currentPage" :total-items="total" :page-size="pageSize" @page-change="goToPage" />
     </div>
 

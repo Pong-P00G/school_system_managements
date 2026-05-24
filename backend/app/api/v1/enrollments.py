@@ -61,6 +61,103 @@ async def list_enrollments(
     return EnrollmentListOut(enrollments=enrollments, total=total)
 
 
+# ─── Withdrawal Requests (static paths must come before /{enrollment_id}) ───
+
+from app.models.people import WithdrawalRequest
+from app.api.deps import get_current_user
+from app.models.user import User
+
+
+@router.get("/withdrawal-requests/all")
+async def list_all_withdrawal_requests(
+    status_filter: str | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all withdrawal requests (for admin/teacher)."""
+    query = (
+        select(WithdrawalRequest)
+        .options(
+            selectinload(WithdrawalRequest.enrollment)
+            .selectinload(Enrollment.section)
+            .selectinload(CourseSection.course),
+            selectinload(WithdrawalRequest.student).selectinload(Student.user),
+        )
+        .order_by(WithdrawalRequest.created_at.desc())
+    )
+    if status_filter:
+        query = query.where(WithdrawalRequest.status == status_filter)
+
+    result = await db.execute(query.offset(skip).limit(limit))
+    requests = result.scalars().all()
+    return {
+        "requests": [
+            {
+                "request_id": r.request_id,
+                "enrollment_id": r.enrollment_id,
+                "student_name": r.student.user.username if r.student and r.student.user else "Unknown",
+                "student_id": str(r.student_id),
+                "course_code": r.enrollment.section.course.course_code if r.enrollment and r.enrollment.section and r.enrollment.section.course else "",
+                "course_name": r.enrollment.section.course.course_name if r.enrollment and r.enrollment.section and r.enrollment.section.course else "",
+                "reason": r.reason,
+                "status": r.status,
+                "reviewer_note": r.reviewer_note,
+                "created_at": r.created_at,
+                "reviewed_at": r.reviewed_at,
+            }
+            for r in requests
+        ],
+        "total": len(requests),
+    }
+
+
+@router.put("/withdrawal-requests/{request_id}/review")
+async def review_withdrawal_request(
+    request_id: int,
+    action: str = Query(..., pattern="^(approved|rejected)$"),
+    note: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin/teacher approves or rejects a withdrawal request."""
+    result = await db.execute(
+        select(WithdrawalRequest).where(WithdrawalRequest.request_id == request_id)
+    )
+    request = result.scalar_one_or_none()
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if request.status != "pending":
+        raise HTTPException(status_code=400, detail="Request already reviewed")
+
+    request.status = action
+    request.reviewed_by = current_user.user_id
+    request.reviewed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    request.reviewer_note = note
+
+    if action == "approved":
+        enr_result = await db.execute(
+            select(Enrollment).where(Enrollment.enrollment_id == request.enrollment_id)
+        )
+        enrollment = enr_result.scalar_one_or_none()
+        if enrollment:
+            enrollment.enrollment_status = "withdrawn"
+            enrollment.withdrawal_date = datetime.now(timezone.utc).replace(tzinfo=None)
+            enrollment.withdrawal_reason = request.reason
+            # Decrement section enrolled count
+            section_result = await db.execute(
+                select(CourseSection).where(CourseSection.section_id == enrollment.section_id)
+            )
+            section = section_result.scalar_one_or_none()
+            if section and section.enrolled_count > 0:
+                section.enrolled_count -= 1
+            await notify_withdrawal(db, enrollment.student_id, enrollment.section_id)
+
+    await db.flush()
+    return {"request_id": request.request_id, "status": request.status, "reviewed_at": request.reviewed_at}
+
+
 @router.get("/{enrollment_id}", response_model=EnrollmentOut)
 async def get_enrollment(enrollment_id: int, db: AsyncSession = Depends(get_db)):
     """Get a single enrollment by ID."""
@@ -262,3 +359,86 @@ async def submit_grade(
     await notify_grade_submitted(db, student_id, enrollment_id, grade, course_name)
 
     return enrollment
+
+
+
+@router.post("/{enrollment_id}/withdrawal-request", status_code=status.HTTP_201_CREATED)
+async def create_withdrawal_request(
+    enrollment_id: int,
+    reason: str = Query(..., min_length=5),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Student requests to withdraw from a course."""
+    result = await db.execute(select(Enrollment).where(Enrollment.enrollment_id == enrollment_id))
+    enrollment = result.scalar_one_or_none()
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Enrollment not found")
+
+    # Verify the student owns this enrollment
+    student_res = await db.execute(select(Student).where(Student.student_id == current_user.user_id))
+    student = student_res.scalar_one_or_none()
+    if not student or enrollment.student_id != student.student_id:
+        raise HTTPException(status_code=403, detail="Not your enrollment")
+
+    if enrollment.enrollment_status != "enrolled":
+        raise HTTPException(status_code=400, detail="Can only request withdrawal for active enrollments")
+
+    # Check for existing pending request
+    existing = await db.execute(
+        select(WithdrawalRequest).where(
+            WithdrawalRequest.enrollment_id == enrollment_id,
+            WithdrawalRequest.status == "pending",
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="A pending withdrawal request already exists")
+
+    request = WithdrawalRequest(
+        enrollment_id=enrollment_id,
+        student_id=student.student_id,
+        reason=reason,
+    )
+    db.add(request)
+    await db.flush()
+    await db.refresh(request)
+
+    # Notify instructor and admins
+    from app.services.notification_service import notify_withdrawal_request
+    await notify_withdrawal_request(db, student.student_id, enrollment_id)
+    await db.flush()
+
+    return {
+        "request_id": request.request_id,
+        "enrollment_id": request.enrollment_id,
+        "reason": request.reason,
+        "status": request.status,
+        "created_at": request.created_at,
+    }
+
+
+@router.get("/{enrollment_id}/withdrawal-request")
+async def get_withdrawal_requests_for_enrollment(
+    enrollment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get withdrawal requests for a specific enrollment."""
+    result = await db.execute(
+        select(WithdrawalRequest)
+        .where(WithdrawalRequest.enrollment_id == enrollment_id)
+        .order_by(WithdrawalRequest.created_at.desc())
+    )
+    requests = result.scalars().all()
+    return [
+        {
+            "request_id": r.request_id,
+            "enrollment_id": r.enrollment_id,
+            "reason": r.reason,
+            "status": r.status,
+            "reviewer_note": r.reviewer_note,
+            "created_at": r.created_at,
+            "reviewed_at": r.reviewed_at,
+        }
+        for r in requests
+    ]

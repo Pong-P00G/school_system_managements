@@ -103,6 +103,11 @@ const getAverage = (enr) => {
 
     <!-- Table Card -->
     <div class="bg-surface border border-border-light rounded-2xl shadow-card animate-fade-in">
+      <!-- Count bar -->
+      <div v-if="!loading && students.length > 0" class="flex items-center gap-2 px-6 py-3 border-b border-border-light bg-page/50">
+        <Icons name="mdi-account-group" class="text-base text-ink-muted" />
+        <span class="text-xs font-medium text-ink-muted">{{ students.length }} student{{ students.length !== 1 ? 's' : '' }} found</span>
+      </div>
       <!-- Loading -->
       <div v-if="loading" class="text-center py-12 text-ink-muted">
         <Icons name="mdi-loading" class="animate-spin w-8 h-8 mb-2" />

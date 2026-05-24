@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   getFacultySections, createSection, updateSection, deleteSection, getCourses, getTerms,
@@ -143,6 +143,9 @@ const saveClass = async () => {
 
 const enrollPercent = (sec) => sec.max_capacity ? Math.round((sec.enrolled_count / sec.max_capacity) * 100) : 0
 
+const totalStudents = computed(() => sections.value.reduce((sum, s) => sum + (s.enrolled_count || 0), 0))
+const totalCapacity = computed(() => sections.value.reduce((sum, s) => sum + (s.max_capacity || 0), 0))
+
 const openClassDetail = async (section) => {
   detailSection.value = section
   detailEnrollments.value = []
@@ -183,6 +186,22 @@ const getStudentName = (enr) => {
         class="inline-flex items-center gap-2 px-5 py-2.5 bg-coral text-white border-none rounded-xl font-sans text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-coral-hover hover:shadow-[0_4px_12px_rgba(224,122,95,0.3)]">
         <Icons name="mdi-plus" /> Create Class
       </button>
+    </div>
+
+    <!-- Quick Stats -->
+    <div v-if="!loading && sections.length > 0" class="flex flex-wrap gap-4 px-1">
+      <div class="flex items-center gap-2 text-sm text-ink-muted">
+        <Icons name="mdi-book-open-variant" class="text-primary" />
+        <span><strong class="text-ink">{{ sections.length }}</strong> Sections</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-ink-muted">
+        <Icons name="mdi-account-group" class="text-sage" />
+        <span><strong class="text-ink">{{ totalStudents }}</strong> Students</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-ink-muted">
+        <Icons name="mdi-seat" class="text-coral" />
+        <span><strong class="text-ink">{{ totalCapacity - totalStudents }}</strong> Seats Available</span>
+      </div>
     </div>
 
     <div v-if="loading" class="text-center py-16 text-ink-muted">

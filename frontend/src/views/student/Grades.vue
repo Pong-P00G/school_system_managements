@@ -41,6 +41,10 @@ const completedEnrollments = computed(() =>
   enrollments.value.filter(enr => enr.enrollment_status === 'completed' || enr.grade)
 )
 
+const inProgressEnrollments = computed(() =>
+  enrollments.value.filter(enr => enr.enrollment_status === 'enrolled' && !enr.grade)
+)
+
 const gradeColor = (grade) => {
   if (!grade) return 'text-ink-muted'
   if (['A', 'A+', 'A-'].includes(grade)) return 'text-success'
@@ -153,6 +157,32 @@ onMounted(fetchGrades)
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- In Progress Courses -->
+    <div v-if="!loading && inProgressEnrollments.length > 0" class="bg-surface border border-border-light rounded-2xl shadow-card animate-fade-in delay-4">
+      <div class="flex items-center gap-2 px-6 py-4 border-b border-border-light">
+        <div class="w-7 h-7 rounded-full bg-warning/10 text-warning flex items-center justify-center text-sm">
+          <Icons name="mdi-progress-clock" />
+        </div>
+        <h3 class="text-base font-semibold text-ink">In Progress</h3>
+        <span class="ml-auto px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning/12 text-[#b45309]">{{ inProgressEnrollments.length }} courses</span>
+      </div>
+      <div>
+        <div v-for="enr in inProgressEnrollments" :key="enr.enrollment_id"
+          class="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3.5 border-b border-border-light last:border-b-0">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-warning/10 text-warning flex items-center justify-center text-base shrink-0">
+              <Icons name="mdi-book-open-variant" />
+            </div>
+            <div>
+              <p class="font-medium text-sm text-ink">{{ enr.section?.course?.course_code }} — {{ enr.section?.course?.course_name }}</p>
+              <p class="text-xs text-ink-muted mt-0.5">{{ enr.section?.course?.credits }} credits · {{ enr.section?.term?.term_name || 'Current Term' }}</p>
+            </div>
+          </div>
+          <span class="px-3 py-1 rounded-full text-xs font-medium bg-warning/12 text-[#b45309]">In Progress</span>
+        </div>
       </div>
     </div>
   </div>

@@ -9,9 +9,13 @@ const loading = ref(true)
 const teacherInfo = ref(null)
 const mySections = ref([])
 
-const teacherName = computed(() => teacherInfo.value ? `${teacherInfo.value.user?.personal_info?.first_name} ${teacherInfo.value.user?.personal_info?.last_name}` : 'Instructor')
+const teacherName = computed(() => {
+  const info = teacherInfo.value?.user?.personal_info || authStore.user?.personal_info
+  if (info?.first_name) return `${info.first_name} ${info.last_name || ''}`
+  return teacherInfo.value?.user?.username || authStore.user?.username || 'Instructor'
+})
 const deptName = computed(() => teacherInfo.value?.department?.department_name || 'N/A')
-const title = computed(() => teacherInfo.value?.faculty_rank || 'Faculty Member')
+const title = computed(() => teacherInfo.value?.faculty_rank || 'Instructor')
 const totalStudents = computed(() => mySections.value.reduce((total, sec) => total + (sec.enrolled_count || 0), 0))
 const activeCourses = computed(() => mySections.value.length)
 
@@ -66,33 +70,33 @@ onMounted(async () => {
     </div>
 
     <!-- Stats -->
-    <div v-else class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div v-else class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
       <div
-        class="bg-surface border border-border-light rounded-2xl p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-1">
+        class="bg-surface border border-border-light rounded-2xl p-4 sm:p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-1">
         <div class="absolute top-0 left-0 w-1 h-full rounded-l-2xl bg-primary"></div>
         <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg mb-3">
           <Icons name="mdi-book-open-variant" />
         </div>
         <p class="text-xs font-medium text-ink-muted uppercase tracking-wide mb-1">Courses Teaching</p>
-        <p class="text-3xl font-bold text-ink">{{ activeCourses }}</p>
+        <p class="text-2xl sm:text-3xl font-bold text-ink">{{ activeCourses }}</p>
       </div>
       <div
-        class="bg-surface border border-border-light rounded-2xl p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-2">
+        class="bg-surface border border-border-light rounded-2xl p-4 sm:p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-2">
         <div class="absolute top-0 left-0 w-1 h-full rounded-l-2xl bg-sage"></div>
         <div class="w-10 h-10 rounded-full bg-sage/12 text-[#5e6e5f] flex items-center justify-center text-lg mb-3">
           <Icons name="mdi-account-group" />
         </div>
         <p class="text-xs font-medium text-ink-muted uppercase tracking-wide mb-1">Total Students</p>
-        <p class="text-3xl font-bold text-ink">{{ totalStudents }}</p>
+        <p class="text-2xl sm:text-3xl font-bold text-ink">{{ totalStudents }}</p>
       </div>
       <div
-        class="bg-surface border border-border-light rounded-2xl p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-3">
+        class="bg-surface border border-border-light rounded-2xl p-4 sm:p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden animate-fade-in delay-3">
         <div class="absolute top-0 left-0 w-1 h-full rounded-l-2xl bg-coral"></div>
         <div class="w-10 h-10 rounded-full bg-coral/12 text-coral flex items-center justify-center text-lg mb-3">
           <Icons name="mdi-clipboard-text-clock" />
         </div>
         <p class="text-xs font-medium text-ink-muted uppercase tracking-wide mb-1">Pending Grading</p>
-        <p class="text-3xl font-bold text-ink">{{ pendingTasks.length }}</p>
+        <p class="text-2xl sm:text-3xl font-bold text-ink">{{ pendingTasks.length }}</p>
       </div>
     </div>
 
@@ -159,7 +163,7 @@ onMounted(async () => {
     <div v-if="!loading"
       class="bg-surface border border-border-light rounded-2xl shadow-card p-6 animate-fade-in delay-4">
       <h3 class="text-base font-semibold text-ink mb-4">Quick Actions</h3>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <router-link to="/teacher/grades"
           class="flex items-center gap-3 p-4 border border-border-light rounded-xl no-underline text-ink text-sm font-medium transition-all duration-200 hover:bg-primary/0.25 hover:border-primary hover:shadow-card">
           <div class="w-10 h-10 rounded-full bg-coral/12 text-coral flex items-center justify-center">

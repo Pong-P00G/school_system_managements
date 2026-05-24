@@ -1,10 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getMyEnrollments, getMyStudentProfile, getSections, createEnrollment, joinSectionByCode } from '../../services/api.js'
+import api from '../../services/api.js'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
 import Icons from '../../components/icon/Icons.vue'
 
+const router = useRouter()
 const toast = useToast()
 const authStore = useAuthStore()
 const loading = ref(true)
@@ -16,6 +19,7 @@ const noStudentProfile = ref(false)
 // Join by code
 const joinCode = ref('')
 const joinLoading = ref(false)
+const pendingWithdrawals = ref(new Set())
 
 const fetchPageData = async () => {
   loading.value = true
@@ -38,6 +42,16 @@ const fetchPageData = async () => {
     enrollments.value = enrRes.data.enrollments || []
     const enrolledSectionIds = new Set(enrollments.value.map(e => e.section_id))
     availableSections.value = (secRes.data.sections || []).filter(s => !enrolledSectionIds.has(s.section_id))
+
+    // Check pending withdrawal requests for each enrollment
+    const pending = new Set()
+    for (const enr of enrollments.value) {
+      try {
+        const res = await api.get(`/enrollments/${enr.enrollment_id}/withdrawal-request`)
+        if (res.data.some(r => r.status === 'pending')) pending.add(enr.enrollment_id)
+      } catch (_) {}
+    }
+    pendingWithdrawals.value = pending
   } catch (error) {
     console.error('Error fetching courses:', error)
   } finally {
@@ -143,7 +157,8 @@ onMounted(fetchPageData)
           </div>
           <div v-else>
             <div v-for="enr in enrollments" :key="enr.enrollment_id"
-              class="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-4 border-b border-border-light last:border-b-0 hover:bg-primary/2.5 transition-colors gap-2 sm:gap-0">
+              @click="router.push(`/student/courses/${enr.enrollment_id}`)"
+              class="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-4 border-b border-border-light last:border-b-0 hover:bg-primary/5 transition-colors gap-2 sm:gap-0 cursor-pointer">
               <div class="flex items-center gap-3">
                 <div
                   class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg shrink-0">
@@ -156,8 +171,11 @@ onMounted(fetchPageData)
                     enr.section?.course?.credits }} credits · {{ enr.section?.schedule_pattern || 'Schedule TBA' }}</p>
                 </div>
               </div>
-              <span class="px-3 py-1 rounded-full text-xs font-medium bg-success/12 text-[#047857]">{{
+              <span v-if="pendingWithdrawals.has(enr.enrollment_id)"
+                class="px-3 py-1 rounded-full text-xs font-medium bg-warning/12 text-[#b45309]">Pending Withdrawal</span>
+              <span v-else class="px-3 py-1 rounded-full text-xs font-medium bg-success/12 text-[#047857]">{{
                 enr.enrollment_status }}</span>
+              <Icons name="mdi-chevron-right" class="text-lg text-ink-muted hidden sm:block" />
             </div>
           </div>
         </div>

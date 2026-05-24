@@ -16,7 +16,7 @@ const logout = async () => {
         <div class="container mx-auto flex justify-between items-center">
             <div class="text-white font-bold text-xl">School Management</div>
             <div class="flex space-x-4">
-                <router-link to="/" class="text-gray-300 hover:text-white">Home</router-link>
+                <router-link to="/" class="text-gray-300">Home</router-link>
                 <router-link to="/students" class="text-gray-300 hover:text-white">Students</router-link>
                 <router-link to="/teachers" class="text-gray-300 hover:text-white">Teachers</router-link>
                 <router-link to="/courses" class="text-gray-300 hover:text-white">Courses</router-link>

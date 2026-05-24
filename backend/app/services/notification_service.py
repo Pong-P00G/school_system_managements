@@ -137,3 +137,65 @@ async def notify_assignment_created(
         )
         db.add(notification)
 
+
+
+
+async def notify_withdrawal_request(
+    db: AsyncSession,
+    student_id: UUID,
+    enrollment_id: int,
+):
+    """Notify instructor and admins when a student requests to withdraw."""
+    from app.models.user import User, UserRoleAssignment, UserRole
+
+    enrollment_result = await db.execute(
+        select(Enrollment)
+        .options(
+            selectinload(Enrollment.student).selectinload(Student.user),
+        )
+        .where(Enrollment.enrollment_id == enrollment_id)
+    )
+    enrollment = enrollment_result.scalar_one_or_none()
+    if not enrollment:
+        return
+
+    # Load section separately to ensure instructor_id is available
+    section_result = await db.execute(
+        select(CourseSection)
+        .options(selectinload(CourseSection.course))
+        .where(CourseSection.section_id == enrollment.section_id)
+    )
+    section = section_result.scalar_one_or_none()
+
+    course_name = section.course.course_name if section and section.course else f"Section #{enrollment.section_id}"
+    student_name = enrollment.student.user.username if enrollment.student and enrollment.student.user else "A student"
+
+    # Notify the instructor
+    if section and section.instructor_id:
+        db.add(Notification(
+            user_id=section.instructor_id,
+            title="Withdrawal Request",
+            message=f"{student_name} has requested to withdraw from {course_name}.",
+            notification_type="warning",
+            reference_type="withdrawal_request",
+            reference_id=str(enrollment_id),
+        ))
+
+    # Notify all admins and super-admins
+    admin_result = await db.execute(
+        select(User.user_id)
+        .join(UserRoleAssignment, UserRoleAssignment.user_id == User.user_id)
+        .join(UserRole, UserRole.role_id == UserRoleAssignment.role_id)
+        .where(UserRole.role_name.in_(["admin", "super-admin"]), UserRoleAssignment.is_active == True)
+    )
+    admin_ids = admin_result.scalars().all()
+
+    for admin_id in admin_ids:
+        db.add(Notification(
+            user_id=admin_id,
+            title="Withdrawal Request",
+            message=f"{student_name} has requested to withdraw from {course_name}.",
+            notification_type="warning",
+            reference_type="withdrawal_request",
+            reference_id=str(enrollment_id),
+        ))

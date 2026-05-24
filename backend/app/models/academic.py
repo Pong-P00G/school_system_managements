@@ -183,6 +183,21 @@ class CourseSection(Base):
     instructor = relationship("User", foreign_keys=[instructor_id], lazy="selectin")
     term = relationship("AcademicTerm", back_populates="sections")
     room = relationship("Room", back_populates="sections")
-    enrollments = relationship("Enrollment", back_populates="section", lazy="selectin", passive_deletes="all")
+    enrollments = relationship("Enrollment", back_populates="section", lazy="noload", passive_deletes="all")
     attendance_records = relationship("Attendance", back_populates="section", lazy="selectin", passive_deletes="all")
     assignments = relationship("Assignment", back_populates="section", lazy="selectin", passive_deletes="all")
+
+
+class Announcement(Base):
+    __tablename__ = "announcements"
+
+    announcement_id = Column(Integer, primary_key=True, autoincrement=True)
+    section_id = Column(Integer, ForeignKey("course_sections.section_id", ondelete="CASCADE"), nullable=False)
+    author_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    is_pinned = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=utcnow)
+
+    section = relationship("CourseSection")
+    author = relationship("User", foreign_keys=[author_id])

@@ -127,7 +127,7 @@ function formatTime(dateStr) {
 <template>
   <div class="notification-bell-container" style="position: relative">
     <button
-      class="relative flex items-center justify-center w-9 h-9 border-0 rounded-lg bg-transparent text-gray-500 cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:text-gray-700"
+      class="relative flex items-center justify-center w-9 h-9 border-0 rounded-lg bg-transparent text-gray-500 cursor-pointer transition-all duration-200 hover:text-amber-50"
       @click.stop="showDropdown = !showDropdown"
       :title="unreadCount > 0 ? `${unreadCount} unread notifications` : 'No new notifications'"
     >

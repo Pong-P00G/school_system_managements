@@ -118,6 +118,7 @@ onMounted(loadRoles)
 
     <div v-else class="admin-table-card">
       <div class="admin-record-count">{{ totalRoles }} role(s)</div>
+      <div class="admin-table-wrapper">
       <table class="admin-table">
         <thead>
           <tr>
@@ -163,6 +164,7 @@ onMounted(loadRoles)
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Create / Edit Modal -->
