@@ -3,7 +3,7 @@ import { getMyPages } from '../services/api'
 
 const cachedPages = ref(null)
 const cacheTimestamp = ref(0)
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const CACHE_TTL = 15 * 60 * 1000 // 15 minutes
 
 export function usePagePermissions() {
   const fetchMyPages = async () => {

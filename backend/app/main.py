@@ -44,18 +44,6 @@ async def lifespan(app: FastAPI):
                     created_at TIMESTAMP DEFAULT NOW()
                 )
             """))
-            # Ensure announcements table exists
-            await session.execute(text("""
-                CREATE TABLE IF NOT EXISTS announcements (
-                    announcement_id SERIAL PRIMARY KEY,
-                    section_id INTEGER NOT NULL REFERENCES course_sections(section_id) ON DELETE CASCADE,
-                    author_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-                    title VARCHAR(200) NOT NULL,
-                    content TEXT NOT NULL,
-                    is_pinned BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT NOW()
-                )
-            """))
             await session.commit()
         logger.info("Database connection verified at startup")
     except Exception as e:

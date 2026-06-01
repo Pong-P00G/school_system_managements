@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-
 import Dashboard from '../views/Dashboard.vue'
 import Departments from '../views/Departments.vue'
 import Courses from '../views/Courses.vue'
@@ -343,30 +342,30 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.meta.roles && authStore.isAuthenticated) {     
-     let currentRole = role
-     if (currentRole === 'faculty' || currentRole === 'professor') currentRole = 'teacher'
-     
-     if (currentRole !== 'super-admin' && !to.meta.roles.includes(currentRole)) {
+    let currentRole = role
+    if (currentRole === 'faculty' || currentRole === 'professor') currentRole = 'teacher'
+    
+    if (currentRole !== 'super-admin' && !to.meta.roles.includes(currentRole)) {
         next('/unauthorized')
         return
-     }
+    }
 
      // Check page-level permissions for admin layout pages
-     if (currentRole !== 'super-admin' && to.meta.roles.includes('admin')) {
-       try {
-         const { usePagePermissions } = await import('../composables/usePagePermissions')
-         const { fetchMyPages } = usePagePermissions()
-         const pages = await fetchMyPages()
-         const allowedPaths = pages.map(p => p.page_path)
-         const pagePath = '/' + (to.path.split('/').filter(Boolean)[0] || '')
-         if (!allowedPaths.includes(pagePath) && !allowedPaths.includes(to.path)) {
-           next('/unauthorized')
-           return
-         }
-       } catch (e) {
-         // If API fails, allow access (fail open for non-super-admin pages)
-       }
-     }
+    if (currentRole !== 'super-admin' && to.meta.roles.includes('admin')) {
+      try {
+        const { usePagePermissions } = await import('../composables/usePagePermissions')
+        const { fetchMyPages } = usePagePermissions()
+        const pages = await fetchMyPages()
+        const allowedPaths = pages.map(p => p.page_path)
+        const pagePath = '/' + (to.path.split('/').filter(Boolean)[0] || '')
+        if (!allowedPaths.includes(pagePath) && !allowedPaths.includes(to.path)) {
+          next('/unauthorized')
+          return
+        }
+      } catch (e) {
+        // If API fails, allow access (fail open for non-super-admin pages)
+      }
+    }
   }
   next()
 })

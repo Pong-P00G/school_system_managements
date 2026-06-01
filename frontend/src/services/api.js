@@ -2,26 +2,17 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api/v1',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  withCredentials: true,  // send HttpOnly cookie on every request
+  headers: { 'Content-Type': 'application/json' },
 })
 
-// Request interceptor to attach auth token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
-// Response interceptor for error handling
+// Response interceptor — redirect to login only on /users/me 401 (session expired)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('access_token')
+    if (error.response?.status === 401 && error.config?.url?.includes('/users/me')) {
+      localStorage.removeItem('user')
+      window.location.href = '/login'
     }
     return Promise.reject(error)
   }

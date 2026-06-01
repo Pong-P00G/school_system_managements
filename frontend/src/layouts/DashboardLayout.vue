@@ -15,7 +15,7 @@ const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const userName = computed(() => authStore.user?.username || 'Admin', 'Super Admin')
+const userName = computed(() => authStore.user?.username || 'admin', 'super-admin')
 const userEmail = computed(() => authStore.user?.email || '')
 
 const navigationItems = [
