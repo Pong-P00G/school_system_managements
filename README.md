@@ -103,6 +103,19 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
+# Error install depandency backend pydantic-core
+python.exe -m pip install --upgrade pip
+
+# passlib error dependancy backend remove(bcrypt) in requirement.txt
+# Remove bcrypt version 5.0.0
+bcrypt==5.0.0
+
+# Add this to requirement.txt and reinstall pip install -r requirement.txt
+passlib[bcrypt]==1.7.4
+
+bcrypt==4.0.1
+
+
 # Run development server
 uvicorn app.main:app --reload --port 8000
 ```
@@ -121,7 +134,13 @@ npm run dev
 
 ### Database (PostgreSQL)
 
+
 ```bash
+
+# Upgrade Database
+cd C:\Users\pong7\Documents\School_System\school_system_managements\backend && python -m alembic upgrade head
+
+
 # Start only the database service
 docker compose up -d db
 

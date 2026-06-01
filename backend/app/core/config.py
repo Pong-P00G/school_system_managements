@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = "postgresql+psycopg://123:postgres@localhost:5432/school_system_db_v2"
-    DATABASE_URL_SYNC: str = "postgresql://123:postgres@localhost:5432/school_system_db_v2"
+    DATABASE_URL_SYNC: str = "postgresql+psycopg://123:postgres@localhost:5432/school_system_db_v2"
 
     # Auth
     SECRET_KEY: str = "dev-secret-key-change-in-production"
