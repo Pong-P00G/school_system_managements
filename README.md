@@ -134,12 +134,15 @@ npm run dev
 
 ### Database (PostgreSQL)
 
-
 ```bash
+# Setup local databse (Cross-platform)
+  1. Create the PostgreSQL database (skips if it already exists)
+  2. Write backend/.env with your credentials
+  3. Patch backend/alembic.ini with the correct sqlalchemy.url
+  4. Run alembic upgrade head to apply all migrations
 
 # Upgrade Database
-cd C:\Users\pong7\Documents\School_System\school_system_managements\backend && python -m alembic upgrade head
-
+cd \backend && python -m alembic upgrade head
 
 # Start only the database service
 docker compose up -d db

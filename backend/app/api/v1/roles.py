@@ -3,7 +3,7 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete as sa_delete
+from sqlalchemy import select, delete as sa_delete
 from app.core.database import get_db
 from app.models.user import UserRole, UserRoleAssignment
 from app.models.audit import AuditLog, log_audit
@@ -28,16 +28,22 @@ def get_user_level(current_user) -> int:
     return min(levels) if levels else 99
 
 
-@router.get("/", response_model=RoleListOut)
+def is_super_admin(current_user) -> bool:
+    return any(
+        ra.role.role_name == "super-admin" and ra.is_active
+        for ra in current_user.role_assignments
+    )
+
+
+@router.get("/", response_model=list[UserRoleOut])
 async def list_roles(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_admin),
 ):
-    total = await db.scalar(select(func.count(UserRole.role_id)))
     result = await db.execute(select(UserRole).order_by(UserRole.role_level).offset(skip).limit(limit))
-    return RoleListOut(roles=result.scalars().all(), total=total)
+    return result.scalars().all()
 
 
 @router.post("/", response_model=UserRoleOut, status_code=status.HTTP_201_CREATED)
@@ -47,8 +53,8 @@ async def create_role(
     current_user=Depends(get_current_admin),
 ):
     user_level = get_user_level(current_user)
-    # Can only create roles with higher level number (lower privilege)
-    if data.role_level <= user_level:
+    # super-admin can create any role; others can only create lower-privilege roles
+    if not is_super_admin(current_user) and data.role_level <= user_level:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot create a role with equal or higher privilege than your own")
 
     existing = await db.execute(select(UserRole).where(UserRole.role_name == data.role_name))
@@ -92,14 +98,15 @@ async def update_role(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
 
     user_level = get_user_level(current_user)
-    # Can only modify roles with higher level number (lower privilege)
-    if role.role_level <= user_level:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot modify a role with equal or higher privilege")
+    # super-admin can modify any role; others can only modify lower-privilege roles
+    if not is_super_admin(current_user):
+        if role.role_level <= user_level:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot modify a role with equal or higher privilege")
 
     update_data = data.model_dump(exclude_unset=True)
 
-    # Cannot set level to equal or higher privilege than own
-    if "role_level" in update_data and update_data["role_level"] <= user_level:
+    # Non-super-admin cannot escalate a role to equal or higher privilege than own
+    if not is_super_admin(current_user) and "role_level" in update_data and update_data["role_level"] <= user_level:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot set role level to equal or higher privilege than your own")
 
     if "role_name" in update_data:
@@ -132,8 +139,11 @@ async def delete_role(
     if not role:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
 
+    if role.is_system_role:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete a system role")
+
     user_level = get_user_level(current_user)
-    if role.role_level <= user_level:
+    if not is_super_admin(current_user) and role.role_level <= user_level:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete a role with equal or higher privilege")
 
     await db.execute(sa_delete(UserRoleAssignment).where(UserRoleAssignment.role_id == role_id))
